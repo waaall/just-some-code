@@ -15,10 +15,11 @@ import numpy as np
 import pandas as pd
 # import matplotlib.pyplot as plt   #若用python画图则import
 
-WorkFolder = "data"         #数据所在文件夹
-InputName = "3"             #数据文件名
-InputFormat = ".xlsx"       #数据文件格式
-ECN = 100                   #一个周期数据数量Each Cycle Number
+WorkFolder = "data"                 #数据所在文件夹
+InputName = "3"                     #数据文件名
+InputFormat = ".xlsx"               #数据文件格式
+OutSubName = ['first', 'second']    #两列数据的名字，也作为输出文件的部分名字
+ECN = 100                           #一个周期数据数量Each Cycle Number
 
 
 ##=========================================================
@@ -76,10 +77,10 @@ def listToTxt(List, OutFile):
 
 if __name__ == '__main__':
     # 把数据读入内存，格式是DataFrame，矩阵形式，两列数据分别叫做first、second
-    InitMatrics = pd.read_excel(f"{WorkFolder}/{InputName}{InputFormat}", engine='openpyxl', header=None, names=['first','second'])
+    InitMatrics = pd.read_excel(f"{WorkFolder}/{InputName}{InputFormat}", engine='openpyxl', header=None, names=OutSubName)
     
     #每列数据计算保存一份
-    for col in ["first", "second"]:
+    for col in OutSubName:
         #这列数据转为list，然后调用函数，找出所有幅值（amplitude），并保存
         splitAndFind(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}.txt")
 
