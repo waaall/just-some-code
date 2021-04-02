@@ -1,12 +1,19 @@
-# import xlrd,openpyxl              #xlrd新版不支持xlsx格式，需要再安装openpyxl
-import numpy as np
-import pandas as pd
-# import matplotlib.pyplot as plt   #若用python画图则import
+##=========================================================
+##=======                 问题描述                 =========
+##=========================================================
+
+## 有很多个excel表格，现仅演示一个，表格有两列数据，每列单独处理
+## 每列数据是周期波动信号，周期已知，但信号不稳定，要求得每个周期的平均振幅
 
 
 ##=========================================================
 ##=======                   常量                   =========
 ##=========================================================
+
+# import xlrd,openpyxl              #xlrd新版不支持xlsx格式，需要再安装openpyxl
+import numpy as np
+import pandas as pd
+# import matplotlib.pyplot as plt   #若用python画图则import
 
 WorkFolder = "data"         #数据所在文件夹
 InputName = "3"             #数据文件名
