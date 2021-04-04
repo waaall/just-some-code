@@ -32,14 +32,18 @@ def splitAndFind(List, OutFile):
     CycleNum = int(TotalLength / ECN + 1)               #总周期数
     ShiftNum = TotalLength - int(TotalLength / ECN) * ECN
 
-    AmpList = [findAveAmp(List[0 : ShiftNum - 1])]
+    AmpList = [findAveAmp(List[0 : ShiftNum - 1])[0]]   #这个list就是每个周期的平均幅值
+    ANList = [findAveAmp(List[0 : ShiftNum - 1])[1]]    #Amp Num list存放每个周期幅值出现次数
+
     for x in range(1,CycleNum):
         Head = ShiftNum + ECN * (x-1)
         Tail = ShiftNum + ECN * x -1
-        Amp = findAveAmp(List[Head : Tail])
+        Amp, AmpNum = findAveAmp(List[Head : Tail])
         AmpList.append(Amp)
+        ANList.append(AmpNum)
     # 保存
     listToTxt(AmpList, OutFile)
+    listToTxt(ANList, f"{OutFile}_每周期次数")
 
 #=========================找到一个周期的平均幅值=========================
 def findAveAmp(List):       #测试代码中有效率更高的函数，但这个更易读，若这个函数遇到性能瓶颈可以更换
@@ -47,23 +51,26 @@ def findAveAmp(List):       #测试代码中有效率更高的函数，但这个
     Extreme = List[0]       #存放极值点
     Before = List[0]        #临时值，存放前一个
     Flag = True             #表示相邻两数的大小,后大于前为True
+    AmpNum = 0              #记录幅值出现次数
 
     for x in List:  
         if x - Before < 0 and Flag == True:
             AmpList.append(abs(Before - Extreme)) 
             Flag = False
-            Extreme = Before    #这句和上句不能换，猜测是解释器问题，无法及时将Before赋值给Extreme 
+            Extreme = Before    #这句和上句不能换，猜测是解释器问题，无法及时将Before赋值给Extreme
+            AmpNum += 1 
         elif x - Before > 0 and Flag == False:
             AmpList.append(abs(Before - Extreme))
             Flag = True
             Extreme = Before
+            AmpNum += 1
         Before = x
 
-    return np.mean(AmpList)
+    return np.mean(AmpList), AmpNum
 
 #=========================将list写到txt文件中=========================
 def listToTxt(List, OutFile):
-    File = open(OutFile, 'w')       #w表示每次覆盖写入新文件
+    File = open(f"{OutFile}.txt", 'w')       #w表示每次覆盖写入新文件
     for i in range(len(List)):
         #去除[]、逗号，换行
         s = str(List[i]).replace('[','').replace(']','').replace(',','') +'\n'
@@ -72,25 +79,11 @@ def listToTxt(List, OutFile):
 
 
 ##=========================================================
-##=======                  主代码                  =========
-##=========================================================
-
-if __name__ == '__main__':
-    # 把数据读入内存，格式是DataFrame，矩阵形式，两列数据分别叫做first、second
-    InitMatrics = pd.read_excel(f"{WorkFolder}/{InputName}{InputFormat}", engine='openpyxl', header=None, names=OutSubName)
-    
-    #每列数据计算保存一份
-    for col in OutSubName:
-        #这列数据转为list，然后调用函数，找出所有幅值（amplitude），并保存
-        splitAndFind(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}.txt")
-
-
-##=========================================================
 ##=======                 测试代码                 =========
 ##=========================================================
 
 # 找出所有幅值
-def findAllAmp(List):
+def findAllAmp(List, OutFile):
     AmpList = []            #存放幅值的list
     Extreme = List[0]       #存放极值点
     Before = List[0]        #临时值，存放前一个
@@ -108,7 +101,7 @@ def findAllAmp(List):
             Extreme = Before
         Before = x
 
-    return AmpList
+    listToTxt(AmpList, OutFile)
 
 #这个方法效率高一些，但是更难读，相比之下，若循环次数不多，建议用list
 def anotherfindAveAmp(List):
@@ -132,3 +125,20 @@ def anotherfindAveAmp(List):
         Before = x
 
     return AddAmp / Times 
+
+
+##=========================================================
+##=======                  主代码                  =========
+##=========================================================
+
+if __name__ == '__main__':
+    # 把数据读入内存，格式是DataFrame，矩阵形式，两列数据分别叫做first、second
+    InitMatrics = pd.read_excel(f"{WorkFolder}/{InputName}{InputFormat}", engine='openpyxl', header=None, names=OutSubName)
+    
+    #每列数据计算保存一份
+    for col in OutSubName:
+        #这列数据转为list，然后调用函数，找出所有幅值（amplitude），并保存
+        splitAndFind(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}.txt")
+        findAllAmp(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}_不求平均值")
+
+
