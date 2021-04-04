@@ -138,7 +138,7 @@ if __name__ == '__main__':
     #每列数据计算保存一份
     for col in OutSubName:
         #这列数据转为list，然后调用函数，找出所有幅值（amplitude），并保存
-        splitAndFind(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}.txt")
+        splitAndFind(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}")
         findAllAmp(InitMatrics[col].tolist(), f"{WorkFolder}/{InputName}_{col}_不求平均值")
 
 
