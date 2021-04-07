@@ -4,7 +4,8 @@
 
 ## 有很多个excel表格，现仅演示一个，表格有两列数据，每列单独处理
 ## 每列数据是周期波动信号，周期已知，但信号不稳定，要求得每个周期的平均振幅
-## 此版本不同之处在于加入了一些机制，比如多文件夹并行处理、残缺周期分情况处理等
+## 此版本不同之处在于加入了一些机制，比如多文件夹并行处理、残缺周期分情况处理、DC/AC数据分别处理等
+
 
 ##=========================================================
 ##=======                   常量                   =========
@@ -16,11 +17,13 @@ import numpy as np
 import pandas as pd
 # import matplotlib.pyplot as plt   #若用python画图则import
 
+DCFolderName = "直流"
 WorkFolderList = ['1', '5', '25', '100', '500']
 WorkFolderName = "HZ-width and length"                  #数据所在文件夹
 
 #数据文件名//注意，所有文件名都不带格式，最后再添加
-InputFileList = ['30.8', '31.2', '31.5', '50.8', '51.2', '51.5', '70.8', '71.2', '71.5']        
+DCFileList = ['1.8A', '1.6A', '2.0A']
+ACFileList = ['30.8', '31.2', '31.5', '50.8', '51.2', '51.5', '70.8', '71.2', '71.5']        
 InputFormat = ".xlsx"                                   #数据文件格式
 OutSubName = ['first', 'second']                        #两列数据的名字，也作为输出文件的部分名字
 OutFormat = '.txt'                                      #最终数据输出文件格式
@@ -31,21 +34,44 @@ ECNlist = [250, 100, 20, 20, 20]                        #一个周期数据数�
 ##=======                   函数                   =========
 ##=========================================================
 
+# 这是直流部分，无需计算周期相关
+def DC():
+    WorkFolder = DCFolderName
+    for InputFile in DCFileList:
+        InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}{InputFormat}", 
+                                    engine='openpyxl', header=None, names=OutSubName, usecols=[0,1])
+        
+        os.makedirs(f"{WorkFolder}/{InputFile}", exist_ok=True)
+
+        #每列数据计算保存一份
+        for col in OutSubName:
+            findAllAmp(InitMatrics[col].tolist(), f"{WorkFolder}/{InputFile}/{col}_不求平均值")
+
+
 #==========================对多个文件夹批量输出===========================
-def allFolder(FolderIndexList):
+def ACFolder(FolderIndexList):
     for Index in FolderIndexList:
-        eachFolder(Index)
+        ACFolder(Index)
 
 
 #======================对每个文件夹内多个文件批量输出=======================
-def eachFolder(FolderIndex):
-    for x in InputFileList:
+def ACFolder(FolderIndex):
+    for x in ACFileList:
         InputFile = f"{WorkFolderList[FolderIndex]}-0.{x}"
-        eachFile(InputFile, FolderIndex)
+        ACFile(InputFile, FolderIndex)
+
+#================这个是100HZ、500HZ的，电流不全，所以单独弄==================
+def specialOne(FolderIndex):
+    Perfix = WorkFolderList[FolderIndex]
+    List = ['31.2', '31.5', '50.8', '51.2', '51.5', '70.8', '71.2', '71.5']
+
+    for x in List:
+        InputFile = f"{Perfix}-0.{x}"
+        ACFile(InputFile, FolderIndex)
 
 
 #=========================对每个Excel文件操作输出==========================
-def eachFile(InputFile, FolderIndex):
+def ACFile(InputFile, FolderIndex):
     WorkFolder = WorkFolderList[FolderIndex] + WorkFolderName
     # 把数据读入内存，格式是DataFrame，矩阵形式，两列数据分别叫做first、second
     InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}{InputFormat}", 
@@ -119,11 +145,7 @@ def listToTxt(List, OutFile):
     File.close()
 
 
-##=========================================================
-##=======                 测试代码                 =========
-##=========================================================
-
-# 找出所有幅值
+#================================找出所有幅值================================
 def findAllAmp(List, OutFile):
     AmpList = []            #存放幅值的list
     Extreme = List[0]       #存放极值点
@@ -143,6 +165,12 @@ def findAllAmp(List, OutFile):
         Before = x
 
     listToTxt(AmpList, OutFile)
+
+
+##=========================================================
+##=======                 测试代码                 =========
+##=========================================================
+
 
 #这个方法效率高一些，但是更难读，相比之下，若循环次数不多，建议用list
 def anotherfindAveAmp(List):
@@ -172,19 +200,8 @@ def anotherfindAveAmp(List):
 ##=======                  主代码                  =========
 ##=========================================================
 
-# 这个是500HZ的，电流不全，所以单独弄，另外，500和100HZ的每周期数据太少，无法使用splitAndFind函数
-# 所以100HZ和500HZ使用specialOne函数，且需要将eachFile函数中对splitAndFind的调用注释掉
-def specialOne(FolderIndex):
-    Perfix = WorkFolderList[FolderIndex]
-    List = ['31.2', '31.5', '50.8', '51.2', '51.5', '70.8', '71.2', '71.5']
-
-    for x in List:
-        InputFile = f"{Perfix}-0.{x}"
-        eachFile(InputFile, FolderIndex)
-
-
 if __name__ == '__main__':
-    allFolder([0,1,2])
-    specialOne(3)
-    specialOne(4)   
-
+    DC()
+    # ACFolder([0,1,2])
+    # specialOne(3)
+    # specialOne(4)   
