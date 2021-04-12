@@ -15,11 +15,13 @@
 import os
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool
+from functools import partial
 # import matplotlib.pyplot as plt   #若用python画图则import
 
 DCFolderName = "直流"
 WorkFolderList = ['1', '5', '25', '100', '500']
-WorkFolderName = "HZ-width and length"                  #数据所在文件夹
+WorkFolderName = "HZ"                  #数据所在文件夹
 
 #数据文件名//注意，所有文件名都不带格式，最后再添加
 DCFileList = ['1.8A', '1.6A', '2.0A']
@@ -38,8 +40,12 @@ ECNlist = [250, 100, 20, 20, 20]                        #一个周期数据数�
 def DC():
     WorkFolder = DCFolderName
     for InputFile in DCFileList:
-        InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}{InputFormat}", 
-                                    engine='openpyxl', header=None, names=OutSubName, usecols=[0,1])
+        try:
+            InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}/{InputFile}{InputFormat}", 
+                                engine='openpyxl', header=None, names=OutSubName, usecols=[0,1])
+        except:
+            InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}/{InputFile}{InputFormat.strip('x')}", 
+                                header=None, names=OutSubName, usecols=[0,1])
         
         os.makedirs(f"{WorkFolder}/{InputFile}", exist_ok=True)
 
@@ -55,30 +61,46 @@ def ACAllFolder(FolderIndexList):
 
 
 #======================对每个文件夹内多个文件批量输出=======================
-def ACFolder(FolderIndex):
+def ACFolder(FolderIdx):
+    InputList = []
     for x in ACFileList:
-        InputFile = f"{WorkFolderList[FolderIndex]}-0.{x}"
-        ACFile(InputFile, FolderIndex)
+        InputList.append(f"{WorkFolderList[FolderIdx]}-0.{x}")
+
+    ##多核
+    p = Pool() #p = Pool(processes=4)
+    partial_ACFile = partial(ACFile, FolderIndex=FolderIdx)
+    p.map(partial_ACFile, InputList)
+    p.close()
+    p.join()
+
 
 #================这个是100HZ、500HZ的，电流不全，所以单独弄==================
-def specialOne(FolderIndex):
-    Perfix = WorkFolderList[FolderIndex]
-    List = ['31.2', '31.5', '50.8', '51.2', '51.5', '70.8', '71.2', '71.5']
-
+def specialOne(FolderIdx):
+    Perfix = WorkFolderList[FolderIdx]
+    List = ['30.8', '31.2', '31.5', '50.8', '51.2', '70.8', '71.2', '71.5']
+    InputList = []
     for x in List:
-        InputFile = f"{Perfix}-0.{x}"
-        ACFile(InputFile, FolderIndex)
+        InputList.append(f"{Perfix}-0.{x}")
+    
+    ##多核
+    p = Pool() #p = Pool(processes=4)
+    partial_ACFile = partial(ACFile, FolderIndex=FolderIdx)
+    p.map(partial_ACFile, InputList)
+    p.close()
+    p.join()
 
 
 #=========================对每个Excel文件操作输出==========================
 def ACFile(InputFile, FolderIndex):
     WorkFolder = WorkFolderList[FolderIndex] + WorkFolderName
-    # 把数据读入内存，格式是DataFrame，矩阵形式，两列数据分别叫做first、second
-    InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}{InputFormat}", 
+    # 把数据读入内存，格式是DataFrame，矩阵形式，两列数据分别叫做first、second，
+    # 这次数据在更深入文件夹内（不同于第一次），所以删除了创建文件夹那一行指令
+    try:
+        InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}/{InputFile}{InputFormat}", 
                                 engine='openpyxl', header=None, names=OutSubName, usecols=[0,1])
-    
-    os.makedirs(f"{WorkFolder}/{InputFile}", exist_ok=True)
-
+    except:
+        InitMatrics = pd.read_excel(f"{WorkFolder}/{InputFile}/{InputFile}{InputFormat.strip('x')}", 
+                                header=None, names=OutSubName, usecols=[0,1])
     #每列数据计算保存一份
     for col in OutSubName:
         #这列数据转为list，然后调用函数，找出所有幅值（amplitude），并保存
@@ -201,7 +223,9 @@ def anotherfindAveAmp(List):
 ##=========================================================
 
 if __name__ == '__main__':
-    DC()
-    # ACAllFolder([0,1,2])
-    # specialOne(3)
+    # DC()
+    ACAllFolder([0,1,3,4])
+    # specialOne(2)
     # specialOne(4)   
+
+
