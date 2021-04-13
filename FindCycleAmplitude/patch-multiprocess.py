@@ -223,6 +223,7 @@ def anotherfindAveAmp(List):
 ##=========================================================
 
 if __name__ == '__main__':
+    os.chdir(sys.path[0])       # 这是将路径切换到脚本所在文件夹，当然也可以切换为数据所在的目录
     # DC()
     ACAllFolder([0,1,3,4])
     # specialOne(2)
