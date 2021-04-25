@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "kPZRo0W+drlxpxog/DS5LGtqfBXg79M3t3SbH6ohdBNfSbxIEeFlXPpm2YZWwHyUD7bX8H9rrwIBivRM2AL42A==",
+  "dgSpecHash": "gCY3Af0CvBNdF1MpRONQy/Y3xTRCWOKX1sZ+HmxKYVZbUCq/tYtttPspkNZpkLvKLZQlC1oEE3jw7xpA7lOMRQ==",
   "success": true,
-  "projectFilePath": "C:\\Users\\zxll\\OneDrive\\zxll文件\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj",
+  "projectFilePath": "C:\\Users\\zxll\\Desktop\\mygit\\just-some-code\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\zxll\\.nuget\\packages\\microsoft.netcore.platforms\\5.0.0\\microsoft.netcore.platforms.5.0.0.nupkg.sha512",
     "C:\\Users\\zxll\\.nuget\\packages\\system.data.odbc\\5.0.0\\system.data.odbc.5.0.0.nupkg.sha512"

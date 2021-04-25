@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\zxll\\OneDrive\\zxll文件\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj": {}
+    "C:\\Users\\zxll\\Desktop\\mygit\\just-some-code\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj": {}
   },
   "projects": {
-    "C:\\Users\\zxll\\OneDrive\\zxll文件\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj": {
+    "C:\\Users\\zxll\\Desktop\\mygit\\just-some-code\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\zxll\\OneDrive\\zxll文件\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj",
+        "projectUniqueName": "C:\\Users\\zxll\\Desktop\\mygit\\just-some-code\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj",
         "projectName": "WindowsFormsAppzx",
-        "projectPath": "C:\\Users\\zxll\\OneDrive\\zxll文件\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj",
+        "projectPath": "C:\\Users\\zxll\\Desktop\\mygit\\just-some-code\\sysapp\\WindowsFormsAppzx\\WindowsFormsAppzx.csproj",
         "packagesPath": "C:\\Users\\zxll\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\zxll\\OneDrive\\zxll文件\\sysapp\\WindowsFormsAppzx\\obj\\",
+        "outputPath": "C:\\Users\\zxll\\Desktop\\mygit\\just-some-code\\sysapp\\WindowsFormsAppzx\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\zxll\\AppData\\Roaming\\NuGet\\NuGet.Config",
