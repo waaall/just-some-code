@@ -35,7 +35,7 @@ def Gain_Rate(Bonus):
     return Rate
 
 def Genenal_Compare():
-    print(f"当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
+    print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
     if Stats[2] < 35.0:
         if Stats[3] > 135.0:
             #计算暴伤头换暴击头收益：
@@ -63,7 +63,7 @@ def Genenal_Compare():
     
     else:
         Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
-        print(f"副词条收益分别为:\n{Rate}")
+        print(f"\n副词条收益分别为:\n{Rate}")
 
 #=======================钟离伤害期望==========================
 def Zhongli_DMG(Zhongli,Bonus):
