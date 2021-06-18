@@ -35,6 +35,7 @@ def Gain_Rate(Bonus):
     return Rate
 
 def Genenal_Compare():
+    print(f"当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
     if Stats[2] < 35.0:
         if Stats[3] > 135.0:
             #计算暴伤头换暴击头收益：
