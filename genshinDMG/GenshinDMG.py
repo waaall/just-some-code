@@ -44,6 +44,8 @@ def Genenal_Compare():
             print(f"若攻击头换暴击头收益伤害提升：")
         else:
             print("\n=========\n你的双爆这么低，你是和我一样的非酋吗^_^\n=========\n")
+            Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
+            print(f"副词条收益分别为:\n{Rate}")
 
     elif Stats[2] > 80.0:
         if Stats[3] < 140.0:
