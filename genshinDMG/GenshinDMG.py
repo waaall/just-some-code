@@ -79,16 +79,21 @@ def Zhongli_DMG(Zhongli,Bonus):
     DMGExpect = (HP*0.33 + (BasicATK+ATKBonus)*Ability) * (1+CRITRate*CRITDMG) * (1+DMGBonus)
     return DMGExpect
 
-def Zhongli_Rate():
+def Zhongli_Rate(Zhongli,Bonus):
+    Rate = ((Zhongli_DMG(Zhongli,Bonus) / Zhongli_DMG(Zhongli,[0,0,0,0,0,0]))-1)*100
+    return Rate
+
+def Zhongli_Compare():
     Input = (input("请输入钟离的基础生命值，生命加成与Q技能倍率（仅计算Q技能伤害）："))
     Zhongli = [float(n) for n in Input.split()]
     InitialDMG = Zhongli_DMG(Zhongli,[0,0,0,0,0,0,0])
     
     print(f"Q技能伤害期望为：{InitialDMG}")
+    
+    Rate = {'攻击收益':Zhongli_Rate(Zhongli,[0,5.8,0,0,0,0]), '暴击率收益':Zhongli_Rate(Zhongli,[0,0,3.9,0,0,0]), '爆伤收益': Zhongli_Rate(Zhongli,[0,0,0,7.8,0,0])}
+    print(f"副词条收益分别为:\n{Rate}")
 
-    Rate = ((Zhongli_DMG(Zhongli,Bonus) / Zhongli_DMG(Zhongli,[0,0,0,0,0,0]))-1)*100
-
-def Ganyu_Rate():
+def Ganyu_Compare():
     ### 这部分要重写，写成每部分空格分开输入，用数组记录条件，叠加被动的
     GanyuEnv = int(input("""你的甘雨若打融化反应输入1；
           若只打冰伤输入2；
@@ -130,10 +135,10 @@ def Ganyu_Rate():
 #=======================核心函数（主函数）==========================
 def DMG_Gain_Compare():
     if Character == 1:
-        Ganyu_Rate()
+        Ganyu_Compare()
 
     elif Character == 2:
-        Zhongli_Rate()
+        Zhongli_Compare()
 
     elif Character == 3:
         print("温迪的计算会加入元素精通的影响，还在开发中")
