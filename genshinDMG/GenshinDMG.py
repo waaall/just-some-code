@@ -30,8 +30,8 @@ def Basic_DMG(Bonus):
     return DMGExpect
 
 #=======================稀释后伤害增幅========================
-def Gain_Rate(Bonus):
-    Rate = ((Basic_DMG(Bonus) / Basic_DMG([0,0,0,0,0,0]))-1)*100
+def Gain_Rate(Bonus,Basic):
+    Rate = ((Basic_DMG(Bonus) / Basic_DMG(Basic))-1)*100
     return Rate
 
 def Genenal_Compare():
@@ -45,10 +45,10 @@ def Genenal_Compare():
             print(f"若攻击头换暴击头收益伤害提升：")
         else:
             print("\n=========\n你的双爆这么低，你是和我一样的非酋吗^_^\n=========\n")
-            Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
+            Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0],[0,0,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0],[0,0,0,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
             print(f"副词条收益分别为:\n{Rate}")
 
-    elif Stats[2] > 80.0:
+    elif Stats[2] > 80.0 && Character != 1:
         if Stats[3] < 140.0:
             #计算暴击头换暴伤头收益
             print(f"若暴击头换暴伤头收益伤害提升：")
@@ -58,11 +58,11 @@ def Genenal_Compare():
             print(f"若暴击头换攻击头收益伤害提升：")
         else:
             print("\n=========\n你的双爆这么高，你是欧皇吧^_^，但是暴击超过80%几乎没有收益了\n=========\n")
-            Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0]), '暴击率收益':0, '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
+            Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0],[0,0,0,0,0,0]), '暴击率收益':0, '爆伤收益': Gain_Rate([0,0,0,7.8,0,0],[0,0,0,0,0,0])}
             print(f"副词条收益分别为:\n{Rate}")
     
     else:
-        Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
+        Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0],[0,0,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0],[0,0,0,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0],[0,0,0,0,0,0])}
         print(f"\n副词条收益分别为:\n{Rate}")
 
 #=======================钟离伤害期望==========================
@@ -83,13 +83,29 @@ def Zhongli_Rate():
     Input = (input("请输入钟离的基础生命值，生命加成与Q技能倍率（仅计算Q技能伤害）："))
     Zhongli = [float(n) for n in Input.split()]
     InitialDMG = Zhongli_DMG(Zhongli,[0,0,0,0,0,0,0])
+    
     print(f"Q技能伤害期望为：{InitialDMG}")
 
+    Rate = ((Zhongli_DMG(Zhongli,Bonus) / Zhongli_DMG(Zhongli,[0,0,0,0,0,0]))-1)*100
+
+def Ganyu_Rate():
+    GanyuEnv = int(input("""你的甘雨若打融化反应输入1；
+          若只打冰伤输入2；
+          若是双冰阵容，请输入3；
+          若圣遗物为冰四件套，请输入4；
+          若圣遗物为乐团四件套，请输入5；
+          注释：不打反应双冰且冰4则输入234，且此计算至考虑重击，不考虑大招：\n"""))
+    
+    #这里没有加55%暴击率是考虑实际的被动触发率并非100%
+    if GanyuEnv ==234:
+        Rate = {'攻击收益':Gain_Rate([0,5.8,50,0,0,0],[0,0,50,0,0,0]), '暴击率收益':Gain_Rate([0,0,53.9,0,0,0],[0,0,50,0,0,0]), '爆伤收益': Gain_Rate([0,0,50,7.8,0,0],[0,0,50,0,0,0])}
+        print(f"\n副词条收益分别为:\n{Rate}")
+ 
 
 #=======================核心函数（主函数）==========================
 def DMG_Gain_Compare():
     if Character == 1:
-        print("甘雨由于其冰套等会影响其伤害计算，还在开发中")
+        Ganyu_Rate()
 
     elif Character == 2:
         Zhongli_Rate()
