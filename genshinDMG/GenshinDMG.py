@@ -35,7 +35,7 @@ def Gain_Rate(Bonus,Basic):
     return Rate
 
 def Genenal_Compare():
-    print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
+    print(f"\n=============\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}\n=============\n")
     if Stats[2] < 35.0:
         if Stats[3] > 135.0:
             #计算暴伤头换暴击头收益：
@@ -44,9 +44,9 @@ def Genenal_Compare():
             #计算攻击头换为暴击头收益
             print(f"若攻击头换暴击头收益伤害提升：")
         else:
-            print("\n=========\n你的双爆这么低，你是和我一样的非酋吗^_^\n=========\n")
+            print("\n=============\n你的双爆这么低，你是和我一样的非酋吗^_^\n=============\n")
             Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0],[0,0,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0],[0,0,0,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0])}
-            print(f"副词条收益分别为:\n{Rate}")
+            print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
     elif Stats[2] > 80.0 and Character != 1:
         if Stats[3] < 140.0:
@@ -57,18 +57,18 @@ def Genenal_Compare():
             #计算暴击头换攻击头
             print(f"若暴击头换攻击头收益伤害提升：")
         else:
-            print("\n=========\n你的双爆这么高，你是欧皇吧^_^，但是暴击超过80%几乎没有收益了\n=========\n")
+            print("\n=============\n你的双爆这么高，你是欧皇吧^_^，但是暴击超过80%几乎没有收益了\n=============\n")
             Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0],[0,0,0,0,0,0]), '暴击率收益':0, '爆伤收益': Gain_Rate([0,0,0,7.8,0,0],[0,0,0,0,0,0])}
-            print(f"副词条收益分别为:\n{Rate}")
+            print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
     
     else:
         Rate = {'攻击收益':Gain_Rate([0,5.8,0,0,0,0],[0,0,0,0,0,0]), '暴击率收益':Gain_Rate([0,0,3.9,0,0,0],[0,0,0,0,0,0]), '爆伤收益': Gain_Rate([0,0,0,7.8,0,0],[0,0,0,0,0,0])}
-        print(f"\n副词条收益分别为:\n{Rate}")
+        print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
 #=======================钟离伤害期望==========================
 def Zhongli_DMG(Zhongli,Bonus):
     BasicATK = Stats[0]+Bonus[0]                #基础攻击力
-    ATKBonus = Stats[1]+BasicATK*Bonus[1]       #攻击力加成
+    ATKBonus = Stats[1]+BasicATK*Bonus[1]/100   #攻击力加成
     CRITRate = (Stats[2]+Bonus[2])/100          #暴击率
     CRITDMG = (Stats[3]+Bonus[3])/100           #暴击伤害
     DMGBonus = (Stats[4]+Bonus[4])/100          #对应元素伤害加成
@@ -80,7 +80,7 @@ def Zhongli_DMG(Zhongli,Bonus):
     return DMGExpect
 
 def Zhongli_Rate(Zhongli,Bonus):
-    Rate = ((Zhongli_DMG(Zhongli,Bonus) / Zhongli_DMG(Zhongli,[0,0,0,0,0,0]))-1)*100
+    Rate = ((Zhongli_DMG(Zhongli,Bonus) / Zhongli_DMG(Zhongli,[0,0,0,0,0,0,0]))-1)*100
     return Rate
 
 def Zhongli_Compare():
@@ -88,10 +88,11 @@ def Zhongli_Compare():
     Zhongli = [float(n) for n in Input.split()]
     InitialDMG = Zhongli_DMG(Zhongli,[0,0,0,0,0,0,0])
     
-    print(f"Q技能伤害期望为：{InitialDMG}")
+    print(f"\n=============\nQ技能伤害期望为：{InitialDMG}\n=============\n")
     
-    Rate = {'攻击收益':Zhongli_Rate(Zhongli,[0,5.8,0,0,0,0]), '暴击率收益':Zhongli_Rate(Zhongli,[0,0,3.9,0,0,0]), '爆伤收益': Zhongli_Rate(Zhongli,[0,0,0,7.8,0,0])}
-    print(f"副词条收益分别为:\n{Rate}")
+    Rate = {'攻击收益':Zhongli_Rate(Zhongli,[0,5.8,0,0,0,0,0]), '暴击率收益':Zhongli_Rate(Zhongli,[0,0,3.9,0,0,0,0]),
+     '爆伤收益': Zhongli_Rate(Zhongli,[0,0,0,7.8,0,0,0]), '生命收益':Zhongli_Rate(Zhongli,[0,0,0,0,0,0,5.8])}
+    print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
 def Ganyu_Compare():
     ### 这部分要重写，写成每部分空格分开输入，用数组记录条件，叠加被动的
@@ -106,27 +107,27 @@ def Ganyu_Compare():
     
     #这里没有加55%暴击率是考虑实际的被动触发率并非100%，阿莫斯被动按照3层计算，试作按照
     if GanyuEnv ==2347:
-        print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
+        print(f"\n=============\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}\n=============\n")
         Rate = {'攻击收益':Gain_Rate([0,5.8,50,0,0,0],[0,0,50,0,0,0]), '暴击率收益':Gain_Rate([0,0,53.9,0,0,0],[0,0,50,0,0,0]), '爆伤收益': Gain_Rate([0,0,50,7.8,0,0],[0,0,50,0,0,0])}
-        print(f"\n副词条收益分别为:\n{Rate}")
+        print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
     
     elif GanyuEnv ==237:
-        print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
+        print(f"\n=============\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}\n=============\n")
         Rate = {'攻击收益':Gain_Rate([0,5.8,30,0,0,0],[0,0,30,0,0,0]), '暴击率收益':Gain_Rate([0,0,33.9,0,0,0],[0,0,30,0,0,0]), '爆伤收益': Gain_Rate([0,0,30,7.8,0,0],[0,0,30,0,0,0])}
-        print(f"\n副词条收益分别为:\n{Rate}")
+        print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
     elif GanyuEnv ==247:
-        print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
+        print(f"\n=============\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}\n=============\n")
         Rate = {'攻击收益':Gain_Rate([0,5.8,35,0,0,0],[0,0,35,0,0,0]), '暴击率收益':Gain_Rate([0,0,38.9,0,0,0],[0,0,35,0,0,0]), '爆伤收益': Gain_Rate([0,0,35,7.8,0,0],[0,0,35,0,0,0])}
-        print(f"\n副词条收益分别为:\n{Rate}")
+        print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
     elif GanyuEnv ==2357:
-        print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}")
+        print(f"\n=============\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,0,0,0,0])}\n=============\n")
         Rate = {'攻击收益':Gain_Rate([0,5.8,30,0,35,0],[0,0,30,0,35,0]), '暴击率收益':Gain_Rate([0,0,33.9,0,35,0],[0,0,30,0,35,0]), '爆伤收益': Gain_Rate([0,0,30,7.8,35,0],[0,0,30,0,35,0])}
-        print(f"\n副词条收益分别为:\n{Rate}")
+        print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
     elif GanyuEnv ==2346:
-        print(f"\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,50,0,0,0])}")
+        print(f"\n=============\n当前不考虑技能倍率的伤害期望为：{Basic_DMG([0,0,50,0,0,0])}\n=============\n")
 
     else:
         print("请输入正确的组合～(你要是打反应，冰套暴击率加成是无效的哦)")
