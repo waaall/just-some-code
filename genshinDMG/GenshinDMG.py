@@ -29,6 +29,15 @@ def Basic_DMG(Bonus):
     DMGExpect = (BasicATK+ATKBonus) * (1+CRITRate*CRITDMG) * (1+DMGBonus)
     return DMGExpect
 
+def Swirl_DMG(Char_Level, EleMastery):
+    if Char_Level > 69:
+        #还有待拟合
+        Basic_Swirl_DMG = 868
+        DMG = Basic_Swirl_DMG * 0.9 * 1.28 * (1.6 + 16 * EleMastery/(EleMastery + 2000))
+        return DMG
+    else:
+        print("由于等级低扩散反应伤害收益低，所以不计算70级以下扩散伤害")
+
 #=======================稀释后伤害增幅========================
 def Gain_Rate(Bonus,Basic):
     Rate = ((Basic_DMG(Bonus) / Basic_DMG(Basic))-1)*100
@@ -91,9 +100,10 @@ def Zhongli_Compare():
     print(f"\n=============\nQ技能伤害期望为：{InitialDMG}\n=============\n")
     
     Rate = {'攻击收益':Zhongli_Rate(Zhongli,[0,5.8,0,0,0,0,0]), '暴击率收益':Zhongli_Rate(Zhongli,[0,0,3.9,0,0,0,0]),
-     '爆伤收益': Zhongli_Rate(Zhongli,[0,0,0,7.8,0,0,0]), '生命收益':Zhongli_Rate(Zhongli,[0,0,0,0,0,0,5.8])}
+            '爆伤收益': Zhongli_Rate(Zhongli,[0,0,0,7.8,0,0,0]), '生命收益':Zhongli_Rate(Zhongli,[0,0,0,0,0,0,5.8])}
     print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
 
+#=======================甘雨伤害期望==========================
 def Ganyu_Compare():
     ### 这部分要重写，写成每部分空格分开输入，用数组记录条件，叠加被动的
     GanyuEnv = int(input("""你的甘雨若打融化反应输入1；
@@ -133,6 +143,37 @@ def Ganyu_Compare():
         print("请输入正确的组合～(你要是打反应，冰套暴击率加成是无效的哦)")
 
 
+#=======================温迪伤害期望==========================
+def Venti_DMG(Venti,Bonus):
+    #下面考虑对群（3人）扩散非水元素伤害，一个输出循环（2E1Q）
+
+    #风伤(其中“1.28*0.63/2”是大招染色伤害和风伤的比例)
+    Total_Anemo_DMG = Basic_DMG(Bonus) * 0.45 * (Venti[0]/100*2 + Venti[1]/100 * (1+1.28*0.63/2) * 19) * 3
+    
+    #扩散伤害
+    Single_Swirl_DMG = Swirl_DMG(90, Stats[5]+Bonus[5])
+    Total_Swirl_DMG = Single_Swirl_DMG * 8 * 6
+    
+    #总伤害
+    Total_Venti_DMG = Total_Swirl_DMG + Total_Anemo_DMG
+
+    return Total_Venti_DMG
+
+def Venti_Rate(Venti,Bonus):
+    Rate = ((Venti_DMG(Venti,Bonus) / Venti_DMG(Venti,[0,0,0,0,0,0]))-1)*100
+    return Rate
+
+def Venti_Compare():
+    Input = (input("请输入温迪的E与Q技能倍率："))
+    Venti = [float(n) for n in Input.split()] 
+    #现面板伤害
+    print(f"\n=============\n温迪对群（3人）染色非水元素总伤害为：{Venti_DMG(Venti,[0,0,0,0,0,0])}\n=============\n")
+
+    #副词条收益
+    Rate = {'攻击收益':Venti_Rate(Venti,[0,5.8,0,0,0,0]), '暴击率收益':Venti_Rate(Venti,[0,0,3.9,0,0,0]),
+            '爆伤收益': Venti_Rate(Venti,[0,0,0,7.8,0,0]), '精通收益':Venti_Rate(Venti,[0,0,0,0,0,23])}
+    print(f"\n=============\n副词条收益分别为:\n{Rate}\n=============\n")
+
 #=======================核心函数（主函数）==========================
 def DMG_Gain_Compare():
     if Character == 1:
@@ -142,7 +183,7 @@ def DMG_Gain_Compare():
         Zhongli_Compare()
 
     elif Character == 3:
-        print("温迪的计算会加入元素精通的影响，还在开发中")
+        Venti_Compare()
 
     elif Character == 4:
         Genenal_Compare()
