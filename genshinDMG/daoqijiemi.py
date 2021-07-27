@@ -28,7 +28,7 @@ def Find(RoteMatrix, dimension, InitState):
         Find(RoteMatrix, dimension, InitState)
 
     else:
-        print("请输入正确的数字～")
+        print("抱歉，没能找到答案，请检查是否输入正确～")
 
 #=======================四个魔方（荒海地下）========================
 def Four():
