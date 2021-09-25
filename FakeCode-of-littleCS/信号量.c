@@ -1,29 +1,30 @@
-#include "内存管理"
 #include "调度"
 
-struct 信号量{
-    剩余资源数;
+struct semaphore{
+    left_num;
     struct 等待队列地址 Address;
 };
 
-初始化(信号量 不管啥资源, 资源数){
-    不管啥资源.剩余资源数 = 资源数;
-    不管啥资源.Address = 内存管理.申请内存(多大(struct 等待队列地址));
+init(semaphore resource, num){
+    resource.left_num = num;
+    resource.Address = new struct 等待队列地址;
 }
 
-等等我要用(信号量 不管啥资源){
-    不管啥资源.剩余资源数 --1;
+//上锁
+wait(semaphore resource){
+    resource.left_num --1;
     
-    if(不管啥资源.剩余资源数 < 0){
-        调度.阻塞(不管啥资源.Address);
+    if(resource.left_num < 0){
+        调度.block(resource.Address); //阻塞该进程
     }
 }
 
-好我用完了(信号量 不管啥资源){
-    不管啥资源.剩余资源数 ++1;
+//解锁
+signal(semaphore resource){
+    resource.left_num ++1;
     
-    if(不管啥资源.剩余资源数 <= 0){
-        调度.唤醒(不管啥资源.Address);
+    if(resource.left_num <= 0){
+        调度.wakeup(resource.Address); //唤醒该进程
     }
 }
 

@@ -1,22 +1,22 @@
-#include "系统调用"
+#include "syscall" //系统调用
 
-#define 这个软件的服务器地址 地址 = 2.3.3.3
+#define ServerAddress Add = 2.3.3.3
 
 
-发送(内容){
-    系统调用.显示(内容"已发送");
-    系统调用.网络发送(地址,内容)
+send(char content){
+    syscall.print(content"已发送");
+    syscall.网络发送(Add,content)
 }
 
-主程序(){
-    系统调用.把文件读到内存(3号块);
-    系统调用.显示("正在加载");
+int main(){
+    syscall.read(3);      //把3号块的文件读到内存
+    syscall.print("正在加载");
 
-    要发送的内容 = 系统调用.输入();
+    char content = syscall.input();
     
-    if(点击发送按钮){
-        发送(要发送的内容);
+    if(push_button){
+        send(content);
     }
 
-    完成()
+    return 0;
 }
