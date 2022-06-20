@@ -32,7 +32,7 @@ def Find(RoteMatrix, dimension, InitState):
 
 #=======================四个魔方（荒海地下）========================
 def Four():
-    Dyi  = np.array([1,1,0,1]) 
+    Dyi  = np.array([1,1,0,1])
     Der  = np.array([1,1,1,0])
     Dsan = np.array([0,1,1,1])
     Dsi  = np.array([1,0,1,1])
@@ -42,6 +42,20 @@ def Four():
     Input = input("""请将雷立方的初始状态按顺序依次输入，空格隔开：\n""")
     InitState = np.array([int(n) for n in Input.split()])
     Find(RoteMatrix, 4, InitState)
+
+#=======================四个魔方（管名山）========================
+def Four_heGuan():
+    Dyi  = np.array([1,1,0,0])
+    Der  = np.array([1,1,1,0])
+    Dsan = np.array([0,1,1,1])
+    Dsi  = np.array([0,0,1,1])
+    RoteMatrix = np.array([Dyi,Der,Dsan,Dsi]).T
+
+    ##输入初始状态,并调用求解函数
+    Input = input("""请将雷立方的初始状态按顺序依次输入，空格隔开：\n""")
+    InitState = np.array([int(n) for n in Input.split()])
+    Find(RoteMatrix, 4, InitState)
+
 
 #=======================五个魔方（荒海地下）========================
 def Five():
@@ -62,10 +76,12 @@ def Five():
 ##=======                  主代码                  =========
 ##=========================================================
 def main():
-    dimension = int(input("""若是四个魔方，请输入4；\n若是五个魔方，请输入5：\n"""))
+    dimension = int(input("""若是四个魔方，请输入4；\n若是五个魔方，请输入5：\n若是四个魔方(管名山)，请输入41：\n"""))
     
     if dimension == 4:
         Four()
+    elif dimension == 41:
+        Four_heGuan()
     elif dimension == 5:
         Five()
     else:
