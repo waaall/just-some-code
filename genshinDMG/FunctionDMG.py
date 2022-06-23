@@ -139,7 +139,7 @@ def YeLan():
 # 计算胡桃的收益
 def HuTao():
     #=========计算暴击收益=========
-    CRIT_Rate = np.linspace(30,100,200)         
+    CRIT_Rate = np.linspace(30,100,200)  
     DMG_Rate_CRIT = ((1 + (CRIT_Rate+3.9)/100 * (2*CRIT_Rate)/100) / (1 + CRIT_Rate/100 * 2*CRIT_Rate/100) -1) * 100
 
     #找极值点
@@ -152,11 +152,11 @@ def HuTao():
 
     #=========计算生命收益=========
     Basic_HP = 15552
-    HP_Bonus_Per = np.linspace(50,150,200)
+    HP_Bonus_Per = np.linspace(50,250,200)
     HP = Basic_HP * (1+HP_Bonus_Per/100)
     Basic_ATK = 1155 # HuTao_HuMo_ZhuiYi_Basic_ATK = 715*1.18+311
-    ATK = HP*0.0626 + Basic_ATK
-    DMG_Rate_HP = (((HP+Basic_HP*0.058)*0.0626 + Basic_ATK) / ATK - 1) * 100
+    ATK = HP*(0.0626+0.018) + Basic_ATK # 0.018是一精护摩
+    DMG_Rate_HP = (((HP+Basic_HP*0.058)*(0.0626+0.018) + Basic_ATK) / ATK - 1) * 100
     
     #=========计算火伤收益=========
     Pyro_DMG = np.linspace(46.6,220,300)
@@ -233,10 +233,10 @@ def HuTao():
 
     #=========生命收益图=========
     plt.subplot(155)
-    plt.plot(HP,DMG_Rate_HP,color=colorList[5])
-    plt.xlabel("HP")
+    plt.plot(ATK,DMG_Rate_HP,color=colorList[5])
+    plt.xlabel("Real_ATK")
     plt.ylabel("DMG_Rate(5.8HP)%")
-    plt.xlim(Basic_HP*1.5,Basic_HP*2.5)
+    plt.xlim(3000,4500)
     plt.ylim(1,4)
     
     # #画出对应收益点
@@ -246,17 +246,66 @@ def HuTao():
     # show_HP=f"[{str(round(HP[Correspond_Index]))}, {str(round(Correspond_Value,2))}%]"
     # plt.annotate(show_HP,xy=(HP[Correspond_Index],Correspond_Value),xytext=(HP[Correspond_Index]-6,Correspond_Value+0.1))
     
-    plt.title('HP',loc='left')
+    plt.title('HP(With HuMo)',loc='left')
 
 
     plt.tight_layout() 
     plt.savefig(PhotoName,dpi=200,format='png')
 
+
+# 看胡桃的收益平衡性
+def HuTao_balance():
+    #=========输入面板========= 
+    Input = input("""请将胡桃面板按顺序(开E攻击力 火伤加成 元素精通 暴击率 暴击伤害)依次输入，空格隔开：\n""")
+    Attribute = np.array([float(n) for n in Input.split()])
+    ATK = Attribute[0]
+    Pyro_DMG = Attribute[1]
+    EM = Attribute[2]  
+    CRIT_Rate = Attribute[3]
+    CRIT_DMG = Attribute[4]
+
+    #=========暴击收益========= 
+    DMG_Rate_CRIT = ((1 + (CRIT_Rate+3.9)/100 * (CRIT_DMG)/100) / (1 + CRIT_Rate/100 * CRIT_DMG/100) -1) * 100
+    if CRIT_Rate > 96.1:
+        DMG_Rate_CRIT = ((1 + CRIT_DMG/100) / (1 + CRIT_Rate/100 * CRIT_DMG/100) -1) * 100
+
+    #========爆伤收益==========
+    DMG_Rate_CRITDMG = ((1 + CRIT_Rate/100 * (CRIT_DMG+7.8)/100) / (1 + CRIT_Rate/100 * CRIT_DMG/100) -1) * 100
+    
+    #=========生命收益=========
+    Basic_HP = 15552
+    DMG_Rate_HP = (((Basic_HP*0.058)*(0.0626+0.018) + ATK) / ATK - 1) * 100
+    
+    #=========火伤收益=========
+    DMG_Rate_Pyro = ((1+Pyro_DMG/100+0.058) / (1+Pyro_DMG/100) -1) * 100
+    
+    #=========精通收益=========  
+    DMG_Rate_EM = ((25*(EM+23)/(9*(EM+23+1400))+1)/(25*EM/(9*(EM+1400))+1) - 1) * 100 
+
+    #=========期望伤害========= 
+    DMG = ATK * (1 + Pyro_DMG/100) * (1 + CRIT_Rate/100 * CRIT_DMG/100) * 1.5 * (1 + 25*EM/(9*(EM+1400)+1)) * 2.426 * 0.45
+    After_CRIT_DMG = ATK * (1 + Pyro_DMG/100) * (1 + CRIT_DMG/100) * 1.5 * (1 + 25*EM/(9*(EM+1400)+1)) * 2.426 * 0.45
+    Profit = [DMG_Rate_HP, DMG_Rate_Pyro, DMG_Rate_EM, DMG_Rate_CRIT, DMG_Rate_CRITDMG]
+
+    #=========画图=========
+    fig, ax = plt.subplots()
+    X = ["HP", "Pyro_DMG", "EM", "CRIT_Rate", "CRIT_DMG"]
+    ax.bar(X, Profit, width=0.4, color = [colorList[0], colorList[5], colorList[1], colorList[3], colorList[2]])
+    ax.set(ylim=(1, 4))
+
+    StringDMG = "Expected_DMG = " + str(int(DMG)) + "\nCRIT_DMG = " + str(int(After_CRIT_DMG))
+    plt.title(StringDMG,loc='right')
+    plt.tight_layout() 
+    plt.savefig("HuTao_balance.png",dpi=200,format='png')
+    plt.show()
+
 ##=========================================================
 ##=======                  主代码                  =========
 ##=========================================================
 def main():
-    HuTao()
+    # HuTao()
+    HuTao_balance()
+    
     # Basic_ATK = int(input("请输入人物基础攻击力："))
     # GenOrNot = float(input("若计算通用情况，请输入0.0; 若计算夜兰, 请输入1.0; 若计算冰套双冰永动体系，请输入面板暴击率："))
     
