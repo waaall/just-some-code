@@ -268,6 +268,8 @@ def HuTao_balance():
     DMG_Rate_CRIT = ((1 + (CRIT_Rate+3.9)/100 * (CRIT_DMG)/100) / (1 + CRIT_Rate/100 * CRIT_DMG/100) -1) * 100
     if CRIT_Rate > 96.1:
         DMG_Rate_CRIT = ((1 + CRIT_DMG/100) / (1 + CRIT_Rate/100 * CRIT_DMG/100) -1) * 100
+    if CRIT_Rate > 100:
+        CRIT_Rate = 100
 
     #========爆伤收益==========
     DMG_Rate_CRITDMG = ((1 + CRIT_Rate/100 * (CRIT_DMG+7.8)/100) / (1 + CRIT_Rate/100 * CRIT_DMG/100) -1) * 100
@@ -283,8 +285,10 @@ def HuTao_balance():
     DMG_Rate_EM = ((25*(EM+23)/(9*(EM+23+1400))+1)/(25*EM/(9*(EM+1400))+1) - 1) * 100 
 
     #=========期望伤害========= 
-    DMG = ATK * (1 + Pyro_DMG/100) * (1 + CRIT_Rate/100 * CRIT_DMG/100) * 1.5 * (1 + 25*EM/(9*(EM+1400)+1)) * 2.426 * 0.45
+    DMG = ATK * (1 + Pyro_DMG/100) * (1 + CRIT_Rate/100 * CRIT_DMG/100) * 1.5 * (1 + 25*EM/(9*(EM+1400)+1)) * 2.426 * 0.45 
+
     After_CRIT_DMG = ATK * (1 + Pyro_DMG/100) * (1 + CRIT_DMG/100) * 1.5 * (1 + 25*EM/(9*(EM+1400)+1)) * 2.426 * 0.45
+
     Profit = [DMG_Rate_HP, DMG_Rate_Pyro, DMG_Rate_EM, DMG_Rate_CRIT, DMG_Rate_CRITDMG]
 
     #=========画图=========
@@ -305,7 +309,7 @@ def HuTao_balance():
 def main():
     # HuTao()
     HuTao_balance()
-    
+
     # Basic_ATK = int(input("请输入人物基础攻击力："))
     # GenOrNot = float(input("若计算通用情况，请输入0.0; 若计算夜兰, 请输入1.0; 若计算冰套双冰永动体系，请输入面板暴击率："))
     
