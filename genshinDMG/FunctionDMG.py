@@ -296,6 +296,9 @@ def HuTao_balance():
     X = ["HP", "Pyro_DMG", "EM", "CRIT_Rate", "CRIT_DMG"]
     ax.bar(X, Profit, width=0.4, color = [colorList[0], colorList[5], colorList[1], colorList[3], colorList[2]])
     ax.set(ylim=(1, 4))
+    
+    for a,b in zip(X, Profit):
+        plt.text(a, b+0.05, '%.2f' %b, ha='center', va= 'bottom',fontsize=8)
 
     StringDMG = "Expected_DMG = " + str(int(DMG)) + "\nCRIT_DMG = " + str(int(After_CRIT_DMG))
     plt.title(StringDMG,loc='right')
@@ -322,7 +325,7 @@ def HuTao_Team():
     ATK_buff = ATK_Atem + Zongshi
     EM_buff = ABD
 
-    
+
     # ATK_buff = TaoLong + Zongshi + QianYan + ZhongMo
     # EM_buff = ZhongMo_EM + ShaTang + MoNa + ABD
     
@@ -365,7 +368,7 @@ def HuTao_Team():
     plt.plot(HP,DMG_Rate_HP,color=colorList[3])
     plt.xlabel("Real_ATK")
     plt.ylabel("DMG_Rate(5.8HP)%")
-    plt.xlim(23000,40000)
+    plt.xlim(23328,40000)
     plt.ylim(1,3)
     
     # #画出对应收益点
@@ -386,8 +389,8 @@ def HuTao_Team():
 ##=========================================================
 def main():
     # HuTao()
-    # HuTao_balance()
-    HuTao_Team()
+    HuTao_balance()
+    # HuTao_Team()
 
     # Basic_ATK = int(input("请输入人物基础攻击力："))
     # GenOrNot = float(input("若计算通用情况，请输入0.0; 若计算夜兰, 请输入1.0; 若计算冰套双冰永动体系，请输入面板暴击率："))
