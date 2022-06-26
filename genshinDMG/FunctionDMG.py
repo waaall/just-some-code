@@ -201,7 +201,7 @@ def HuTao():
     plt.subplot(153)
     plt.plot(EM,DMG_Rate_EM,color=colorList[3])
     plt.xlabel("Elemental_Mastery")
-    plt.ylabel("DMG_Rate(5.8Pyro)%")
+    plt.ylabel("DMG_Rate(23EM)%")
     plt.xlim(50,400)
     plt.ylim(1,4)
 
@@ -303,12 +303,91 @@ def HuTao_balance():
     plt.savefig("HuTao_balance.png",dpi=200,format='png')
     plt.show()
 
+# 计算胡桃在不同队伍的收益
+def HuTao_Team():
+    #=========设置buff=========
+    ATK_Atem_Num = 2
+    ATK_Atem = 0.058 * ATK_Atem_Num 
+    TaoLong = 0.48
+    Zongshi = 0.2
+    QianYan = 0.2
+    ZhongMo = 0.2
+
+    ZhongMo_EM = 100
+    MoNa = 100
+    ShaTang = 190
+    ABD = 125
+
+    # 胡行钟阿
+    ATK_buff = ATK_Atem + Zongshi
+    EM_buff = ABD
+
+    
+    # ATK_buff = TaoLong + Zongshi + QianYan + ZhongMo
+    # EM_buff = ZhongMo_EM + ShaTang + MoNa + ABD
+    
+    #=========计算生命收益=========
+    Basic_HP = 15552
+    HP_Bonus_Per = np.linspace(50,250,200)
+    HP = Basic_HP * (1+HP_Bonus_Per/100)
+    Basic_ATK = 1155 + 715 * ATK_buff # HuTao_HuMo_ZhuiYi_Basic_ATK = 715*1.18+311
+    ATK = HP*(0.0626+0.018) + Basic_ATK # 0.018是一精护摩
+    
+    DMG_Rate_HP = (((Basic_HP*0.058)*(0.0626+0.018) + ATK) / ATK - 1) * 100
+
+    #=========计算精通收益=========
+    EM = np.linspace(50,400,800)    
+    # EM_Profit = 25*EM/(9*(EM+1400))+1
+    DMG_Rate_EM = ((25*(EM+EM_buff+23)/(9*(EM+EM_buff+23+1400))+1)/(25*(EM+EM_buff)/(9*(EM+EM_buff+1400))+1) - 1) * 100 
+
+
+    plt.figure(figsize=(16, 8))
+
+    #=========精通收益图=========
+    plt.subplot(121)
+    plt.plot(EM,DMG_Rate_EM,color=colorList[2])
+    plt.xlabel("Elemental_Mastery")
+    plt.ylabel("DMG_Rate(23EM)%")
+    plt.xlim(50,400)
+    plt.ylim(1,3)
+
+    # #画出对应收益点
+    # Correspond_Index,Correspond_Value = Find_Closest(DMG_Rate_EM, CRIT_Max)
+    # plt.plot(EM[Correspond_Index],CRIT_Max,marker="H")
+    # #标记对应收益点
+    # show_EM=f"[{str(round(EM[Correspond_Index]))}, {str(round(Correspond_Value,2))}%]"
+    # plt.annotate(show_EM,xy=(EM[Correspond_Index],Correspond_Value),xytext=(EM[Correspond_Index]-6,Correspond_Value+0.1))
+
+    plt.title('Elemental_Mastery',loc='left')
+
+    #=========生命收益图=========
+    plt.subplot(122)
+    plt.plot(HP,DMG_Rate_HP,color=colorList[3])
+    plt.xlabel("Real_ATK")
+    plt.ylabel("DMG_Rate(5.8HP)%")
+    plt.xlim(23000,40000)
+    plt.ylim(1,3)
+    
+    # #画出对应收益点
+    # Correspond_Index,Correspond_Value = Find_Closest(DMG_Rate_HP, CRIT_Max)
+    # plt.plot(HP[Correspond_Index],CRIT_Max,marker="H")
+    # #标记对应收益点
+    # show_HP=f"[{str(round(HP[Correspond_Index]))}, {str(round(Correspond_Value,2))}%]"
+    # plt.annotate(show_HP,xy=(HP[Correspond_Index],Correspond_Value),xytext=(HP[Correspond_Index]-6,Correspond_Value+0.1))
+    
+    plt.title('HP(With HuMo)',loc='left')
+
+    plt.tight_layout() 
+    plt.savefig("HuTao_Team.png",dpi=200,format='png')
+
+
 ##=========================================================
 ##=======                  主代码                  =========
 ##=========================================================
 def main():
     # HuTao()
-    HuTao_balance()
+    # HuTao_balance()
+    HuTao_Team()
 
     # Basic_ATK = int(input("请输入人物基础攻击力："))
     # GenOrNot = float(input("若计算通用情况，请输入0.0; 若计算夜兰, 请输入1.0; 若计算冰套双冰永动体系，请输入面板暴击率："))
