@@ -165,7 +165,7 @@ def HuTao():
     #=========计算精通收益=========
     EM = np.linspace(50,400,800)    
     # EM_Profit = 25*EM/(9*(EM+1400))+1
-    DMG_Rate_EM = ((25*(EM+23)/(9*(EM+23+1400))+1)/(25*EM/(9*(EM+1400))+1) - 1) * 100 
+    DMG_Rate_EM = ((25*(EM+23)/(9*(EM+23+1400))+1)/(25*EM/(9*(EM+1400))+1) - 1) * 89 
 
 
     plt.figure(figsize=(32, 8))
@@ -282,7 +282,7 @@ def HuTao_balance():
     DMG_Rate_Pyro = ((1+Pyro_DMG/100+0.058) / (1+Pyro_DMG/100) -1) * 100
     
     #=========精通收益=========  
-    DMG_Rate_EM = ((25*(EM+23)/(9*(EM+23+1400))+1)/(25*EM/(9*(EM+1400))+1) - 1) * 100 
+    DMG_Rate_EM = ((25*(EM+23)/(9*(EM+23+1400))+1)/(25*EM/(9*(EM+1400))+1) - 1) * 89 
 
     #=========期望伤害========= 
     DMG = ATK * (1 + Pyro_DMG/100) * (1 + CRIT_Rate/100 * CRIT_DMG/100) * 1.5 * (1 + 25*EM/(9*(EM+1400)+1)) * 2.426 * 0.45 
@@ -293,7 +293,7 @@ def HuTao_balance():
 
     #=========画图=========
     fig, ax = plt.subplots()
-    X = ["HP", "Pyro_DMG", "EM", "CRIT_Rate", "CRIT_DMG"]
+    X = ["HP\n(ATK)"+str(int(ATK)), "Pyro_DMG\n"+str(int(Pyro_DMG)), "EM\n"+str(int(EM)), "CRIT_Rate\n"+str(int(CRIT_Rate)), "CRIT_DMG\n"+str(int(CRIT_DMG))]
     ax.bar(X, Profit, width=0.4, color = [colorList[0], colorList[5], colorList[1], colorList[3], colorList[2]])
     ax.set(ylim=(1, 4))
     
@@ -341,7 +341,7 @@ def HuTao_Team():
     #=========计算精通收益=========
     EM = np.linspace(50,400,800)    
     # EM_Profit = 25*EM/(9*(EM+1400))+1
-    DMG_Rate_EM = ((25*(EM+EM_buff+23)/(9*(EM+EM_buff+23+1400))+1)/(25*(EM+EM_buff)/(9*(EM+EM_buff+1400))+1) - 1) * 100 
+    DMG_Rate_EM = ((25*(EM+EM_buff+23)/(9*(EM+EM_buff+23+1400))+1)/(25*(EM+EM_buff)/(9*(EM+EM_buff+1400))+1) - 1) * 89 
 
 
     plt.figure(figsize=(16, 8))
