@@ -12,8 +12,8 @@ from json import load
 
 def fix_m4s(path: str, suffix: str, bufsize: int = 256*1024*1024) -> None:
     assert bufsize > 0
-    file = f"{path}/{path}{suffix}.m4s"
-    out_file = f"{path}/{path}o{suffix}.m4s"
+    file = f"{path}/{path}{suffix}"
+    out_file = f"{path}/{path}o{suffix}"
 
     media = open(file, 'rb')
     header = media.read(32)
@@ -27,7 +27,7 @@ def fix_m4s(path: str, suffix: str, bufsize: int = 256*1024*1024) -> None:
         out_media.write(buf)
         buf = media.read(bufsize)
 
-# 解析json文件，获取标题，将其返回
+# 解析json文件, 获取标题, 将其返回
 def get_title(info):
     f = open(info,'r',encoding='utf8')
     info_data = load(f)
@@ -42,8 +42,7 @@ def transform(v,a,o):
     ff.run()
 
 # 批量处理
-def batch():
-    abs_path = './'
+def batch(video_suffix: str, audio_suffix: str, abs_path: str):
     paths = os.listdir(abs_path)
     
     # 删除无关文件，仅保留视频所在文件夹；下面两种方法仅使用一种，推荐第一种
@@ -51,11 +50,11 @@ def batch():
     # folders.remove('bili_videos.py')
 
     for path in folders:
-        fix_m4s(path, '-1-30064') #改视频文件
-        fix_m4s(path, '-1-30280') #改音频文件
+        fix_m4s(path, video_suffix) #改视频文件
+        fix_m4s(path, audio_suffix) #改音频文件
 
-        video = f"{path}/{path}o-1-30064.m4s"
-        audio = f"{path}/{path}o-1-30280.m4s"
+        video = f"{path}/{path}o{video_suffix}"
+        audio = f"{path}/{path}o{audio_suffix}"
 
         info = path + '/videoInfo.json'
         out_video = get_title(info) + '.mp4'
@@ -65,5 +64,10 @@ def batch():
 
 # main
 if __name__ == "__main__":
-    batch()
+    abs_path = './'                 # video文件夹所在路径(video文件上一级路径)
+    video_suffix = '-1-30080.m4s'   # video文件后缀
+    audio_suffix = '-1-30280.m4s'   # audio文件后缀
+    
+    # 主函数
+    batch(video_suffix, audio_suffix, abs_path)
 
