@@ -1,18 +1,17 @@
 ##==========================用到的库==========================##
-from PIL import Image
 import os
+from PIL import Image
 from multiprocessing import Pool
 
 ##==========================全局变量==========================##
-path = 'my_pics'        # 图片所在文件夹的目录(相对该python代码)
+pic_path = 'my_pics'    # 图片所在文件夹的目录(相对该python代码)
                         # 图片和python代码在一个文件夹，则path = '.' 
 target_dpi = 800        # 目标DPI 
-OutFolder = os.path.join(path, f"{target_dpi}DPI")#输出文件夹的名字
-
+OutFolder = os.path.join(pic_path, f"{target_dpi}DPI")#输出文件夹的名字
 
 ##=========================提高DPI函数=========================##
 def changeDPI(image_name):
-    img_file = os.path.join(path, image_name)
+    img_file = os.path.join(pic_path, image_name)
     # 检查文件是否存在
     if not os.path.exists(img_file):
         print(f"Error: File '{img_file}' does not exist.")
@@ -32,8 +31,8 @@ def changeDPI(image_name):
         print(f"Error processing:'{img_file}': {e}")
 
 ##==========================并行处理函数==========================##
-def patch(path):
-    Imgs = [f for f in os.listdir(path) if f.endswith(('.png', '.jpg'))]
+def patch_imgs():
+    Imgs = [f for f in os.listdir(pic_path) if f.endswith(('.png', '.jpg'))]
     try:
         # 创建目录，如果目录已经存在，不会报错
         os.makedirs(OutFolder, exist_ok=True)
@@ -47,4 +46,4 @@ def patch(path):
 
 ##============================main============================##
 if __name__ == '__main__':
-    patch(path)
+    patch_imgs()
