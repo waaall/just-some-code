@@ -104,7 +104,7 @@ def dcmseq_to_img(dicom_dir, seq_dir, seq_file):
     return 1
 
 ##==============找到DICOM序列并处理(调用dcmseq_to_img)==============##
-def deal_dicom_seqs(dicom_dir, seq_dir):
+def dicom_seqs_handler(dicom_dir, seq_dir):
     seq_path = os.path.join(dicom_dir, seq_dir)
     items = os.listdir(seq_path)
     # 结果列表
@@ -142,27 +142,25 @@ def check_dicomdir(dicom_dir):
         return None
 
 ##=========================并行处理函数=========================##
-def patch_seq_dirs(dicom_dir):
+def seq_dirs_handler(dicom_dir):
     seq_dirs = check_dicomdir(dicom_dir)
     if seq_dirs is not None:
         with Pool(processes=os.cpu_count()) as pool:
             # 使用 functools.partial 来固定一个参数
-            partial_process_task = partial(deal_dicom_seqs, dicom_dir)
+            partial_process_task = partial(dicom_seqs_handler, dicom_dir)
             # 使用 map 函数并行处理任务，传递任务参数
             pool.map(partial_process_task, seq_dirs)
     else:
         print("请检查文件夹内目录结构")
 
-##============================main============================##
-
-
-def main(dicom_dir):
+##===================对DICOMDIR所在文件夹的处理=====================##
+def dicomdir_dir_handler(dicom_dir):
     frames_dir_name = frames_dir_suffix + dicom_dir
     os.makedirs(frames_dir_name, exist_ok=True)
     options = {
         1: singleshot_view,
         2: lambda: dcmseq_to_img(dicom_dir, deal_single_dir, deal_single),
-        3: patch_seq_dirs
+        3: seq_dirs_handler
     }
 
     if OPTION in options:
@@ -170,11 +168,10 @@ def main(dicom_dir):
         func(dicom_dir)
     else:
         print("Invalid OPTION value")
-
-##============================================================##
+##==========================main==============================##
 if __name__ == '__main__':
     items = os.listdir(os.getcwd())
-    dicom_dirs= [item for item in items if os.path.isdir(item)]
+    dicom_dirs= [item for item in items if os.path.isdir(item) and not item.startswith('Img-')]
     number = len(dicom_dirs)
     for i in range(number):
         print(f"{i}: {dicom_dirs[i]}")
@@ -184,10 +181,11 @@ if __name__ == '__main__':
     except ValueError:
         print("输入错误")
     if index < number and index >= 0:
-        main(dicom_dirs[index])
+        dicomdir_dir_handler(dicom_dirs[index])
     elif index == -1:
-        with Pool(processes=os.cpu_count()) as pool:
-            pool.map(main, dicom_dirs)
+        for dicom_dir in dicom_dirs:
+            print(dicom_dir)
+            dicomdir_dir_handler(dicom_dir)
     else:
         print("请输入有效序号")
 
