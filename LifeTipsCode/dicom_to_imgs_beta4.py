@@ -201,6 +201,7 @@ def main():
     
     # 给用户显示，请用户输入index
     number = len(dicom_dirs)
+    print('\n')
     for i in range(number):
         print(f"{i}: {dicom_dirs[i]}")
     user_input = input("\n请选择要处理的序号（用空格分隔多个序号，全选输入-1）：\n")
