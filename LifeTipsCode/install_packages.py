@@ -7,6 +7,12 @@ required_packages = [
     'numpy',
     'pydicom',
     'matplotlib',
+    'pandas',
+    'ffmpy',
+    'requests',
+    'urllib3',
+    'openpyxl',
+    'pyside6',
 ]
 
 def install_packages(packages):

@@ -1,14 +1,14 @@
 ##==========================README===========================##
 """
-    本代码beta2版本，zhengxu完成于20240805
+    本代码beta2版本, zhengxu完成于20240805
 
-    所需python环境安装完成，所需第三方库：
-    •   pydicom：用于读取DICOM文件。
-    •   numpy：处理图像原始像素数据。
-    •   PIL：处理图像数据并保存为图片。
-    •   matplotlib：显示图像。
+    所需python环境安装完成, 所需第三方库: 
+    •   pydicom: 用于读取DICOM文件。
+    •   numpy: 处理图像原始像素数据。
+    •   PIL: 处理图像数据并保存为图片。
+    •   matplotlib: 显示图像。
 
-    重点看OPTION的注释，需要python文件与dicom_dir文件夹在同一目录下。
+    重点看OPTION的注释, 需要python文件与dicom_dir文件夹在同一目录下。
 """
 ##==========================用到的库===========================##
 import os
@@ -25,7 +25,7 @@ frame_dpi = 800     # 目标图片的DPI
 OPTION = 3
 
 """
-OPTION为设置参数：1，想预览一下单张dicom，自行保存，
+OPTION为设置参数: 1, 想预览一下单张dicom, 自行保存, 
                    则更改watch_single为该文件名，
                    然后在dicom_dir文件夹内的
                    相对文件夹名称设为watch_single_dir
