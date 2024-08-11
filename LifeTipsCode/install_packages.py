@@ -13,6 +13,8 @@ required_packages = [
     'urllib3',
     'openpyxl',
     'pyside6',
+    'scipy',
+    'scikit-image',
 ]
 
 def install_packages(packages):
