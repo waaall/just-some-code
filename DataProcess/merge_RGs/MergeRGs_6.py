@@ -1,18 +1,27 @@
-""" README
-    实验的免疫荧光图片命名需要按照如下格式：
+##===========================README============================##
+""" 
+    实验的免疫荧光图片命名最好按照如下格式：
     R-实验名-组名-视野编号.jpg
     G-实验名-组名-视野编号.jpg
     
+    最低要求：
+    1. 有R或G，且用-与其他字符隔开
+    2. 需要合成的R和G文件名字其余部分完全一致
+    ***-*-R-**.jpg
+    ***-*-G-**.jpg
+    
+    该代码会批量搜索成对的R个G，并把它们红绿通道合成一张图片保存到merge文件夹。
 """
+##===========================用到的库============================##
 import os
 import numpy as np
 from PIL import Image
 
-suffixs = ['.jpg', '.png']
-colors = ['R', 'G']
+##===========================全局变量============================##
+suffixs = ['.jpg', '.png'] # 需要处理的图片类型
+colors = ['R', 'G']        # 需要处理的颜色（改动此变量需要改动大量源码）
 
-
-"""检查文件夹是否存在并返回所有的 .jpg/.png 文件"""
+##======================返回所有的图片文件名=======================##
 def check_folder_and_files(folder_path):
     if not os.path.isdir(folder_path):
         print(f"Error: Folder \"{folder_path}\" does not exist.")
@@ -24,7 +33,7 @@ def check_folder_and_files(folder_path):
         return None
     return files
 
-### 重命名文件
+##=======================规范化命名文件=======================##
 def normalize_filenames(folder_path):
     images = check_folder_and_files(folder_path)
     if images is None:
@@ -36,8 +45,12 @@ def normalize_filenames(folder_path):
         name, ext = os.path.splitext(image)
         # 分割文件名为各部分
         front, true_name = name.split('-', 1)
+
+        # 如果开头有C1或C2就删除，如果格式正确就跳过，否则改名
         if front == 'C1' or front == 'C2':
             parts = true_name.split('-')
+        elif front in colors: #如果格式正确，就不用改名
+            continue
         else:
             parts = name.split('-')
 
@@ -60,9 +73,9 @@ def normalize_filenames(folder_path):
                 break
         # 如果没有匹配到任何颜色，跳过并提示
         if not renamed:
-            print(f"Skipped: {image} (does not contain any specified colors)")
+            print(f"Skipped: 没有表征图片颜色信息: {image}")
 
-"""合并图像并保存"""
+##======================合并图像并保存=======================##
 def image_merge(image_r_path, image_g_path, output_path):
     # 打开图像并转换为RGB
     img_r = Image.open(image_r_path).convert('RGB')
@@ -80,7 +93,7 @@ def image_merge(image_r_path, image_g_path, output_path):
     # 保存合并后的图像
     merged_image_f.save(output_path)
 
-"""配对图片文件"""
+##========================配对图片文件========================##
 def pair_images(folder_path):
     images = check_folder_and_files(folder_path)
     if images is None:
@@ -98,9 +111,10 @@ def pair_images(folder_path):
                     paired = True
                     break
             if not paired:
-                print(f"{image}没有找到对应的G-file")
+                print(f"Unmatched: 没有找到对应的G-file: {base_name}")
     return pairs
 
+##=======================批量处理成对图片=======================##
 def MergeRGs(folder_path):
     pairs = pair_images(folder_path)
     if not pairs:
@@ -120,12 +134,11 @@ def MergeRGs(folder_path):
         image_g_path = os.path.join(folder_path, image_g)
         try:
             image_merge(image_r_path, image_g_path, output_path)
-            print(f"saved merged image: {merged_file_name}")
+            print(f"Saved merged image: {merged_file_name}")
         except Exception as e:
             print(f"Error saving merged image: {str(e)}")
 
-##==========================main==============================##
-# 获取用户输入的路径，为DSA实验文件夹的父目录
+##=====================获取用户输入的路径=======================##
 def get_work_folder():
     # 获取用户输入的路径
     input_path = input("请复制实验文件夹所在目录的绝对路径（若Python代码在同一目录，请直接按Enter）：\n")
@@ -141,6 +154,7 @@ def get_work_folder():
         return None
     return work_folder
 
+##==========================main==============================##
 def main():
     work_folder = get_work_folder()
     if work_folder is None:
@@ -182,6 +196,6 @@ def main():
             else:
                 print(f"无效序号：{index}")
 
-# 示例调用
 if __name__ == '__main__':
     main()
+

@@ -1,14 +1,15 @@
 ##==========================README===========================##
 """
-    本代码beta2版本, zhengxu完成于20240805
+    本代码beta4版本，zhengxu完成于20240805
 
-    所需python环境安装完成, 所需第三方库: 
-    •   pydicom: 用于读取DICOM文件。
-    •   numpy: 处理图像原始像素数据。
-    •   PIL: 处理图像数据并保存为图片。
-    •   matplotlib: 显示图像。
+    所需python环境安装完成(加入环境变量)，所需第三方库：
+    •   pydicom：用于读取DICOM文件。
+    •   numpy：处理图像原始像素数据。
+    •   PIL：处理图像数据并保存为图片。
+    •   matplotlib：显示图像。
+    可以执行脚本install_packages.py来自动安装
 
-    重点看OPTION的注释, 需要python文件与dicom_dir文件夹在同一目录下。
+    重点看OPTION的注释,剩下的执行的时候跟着就行
 """
 ##==========================用到的库===========================##
 import os
@@ -23,27 +24,22 @@ from multiprocessing import Pool
 frames_dir_suffix = 'Img-'
 frame_dpi = 800     # 目标图片的DPI 
 OPTION = 3
-
 """
-OPTION为设置参数: 1, 想预览一下单张dicom, 自行保存, 
-                   则更改watch_single为该文件名，
+OPTION为设置参数：1，想预览一下单张dicom，自行保存，
+                   则更改single_dcm为该文件名，
                    然后在dicom_dir文件夹内的
-                   相对文件夹名称设为watch_single_dir
+                   相对文件夹名称设为single_dir
                 2，仅处理单张dicom文件，自动保存，
-                   则更改watch_single为该文件名，
+                   则更改single_dcm为该文件名，
                    然后在dicom_dir文件夹内的
-                   相对文件夹名称设为deal_single_dir
+                   相对文件夹名称设为single_dir
                 3，自动处理全部DSA拷贝下来的文件夹。
 """
-
-watch_single_dir = '1'   # ''则该文件就在dicom_dir这个文件夹内
-watch_single = '1'  # 单张(想预览)的文件，对应函数singleshot_view
-deal_single_dir = '1'   # ''则该文件就在dicom_dir这个文件夹内
-deal_single = '1'       # dicom序列文件名称（处理单个序列）
-
+single_dir = '1'
+single_dcm = '1'
 ##========================单张DICOM显示========================##
-def singleshot_view():
-    path = os.path.join(dicom_dir, watch_single_dir, watch_single)
+def singleshot_view(dicom_dir, seq_dir, seq_file):
+    path = os.path.join(dicom_dir, seq_dir, seq_file)
     print(f"Attempting to read single DICOM file from: {path}")
     try:
         ds = pydicom.dcmread(path)
@@ -154,12 +150,12 @@ def seq_dirs_handler(dicom_dir):
         print("请检查文件夹内目录结构")
 
 ##===================对DICOMDIR所在文件夹的处理=====================##
-def dicomdir_dir_handler(dicom_dir):
+def dicomdir_dir_handler(work_folder, dicom_dir):
     frames_dir_name = frames_dir_suffix + dicom_dir
     os.makedirs(frames_dir_name, exist_ok=True)
     options = {
-        1: singleshot_view,
-        2: lambda: dcmseq_to_img(dicom_dir, deal_single_dir, deal_single),
+        1: lambda: singleshot_view(dicom_dir, single_dir, single_dcm),
+        2: lambda: dcmseq_to_img(dicom_dir, single_dir, single_dcm),
         3: seq_dirs_handler
     }
 
@@ -168,24 +164,67 @@ def dicomdir_dir_handler(dicom_dir):
         func(dicom_dir)
     else:
         print("Invalid OPTION value")
+
+##=====================获取用户输入的路径=======================##
+def get_work_folder():
+    # 获取用户输入的路径
+    input_path = input("请复制实验文件夹所在目录的绝对路径（若Python代码在同一目录，请直接按Enter）：\n")
+    
+    # 判断用户是否直接按Enter，设置为当前工作目录
+    if not input_path:
+        work_folder = os.getcwd()
+    elif os.path.isdir(input_path):
+        work_folder = input_path
+    else:
+        # 输入路径无效时的错误处理
+        print("错误：请输入正确的路径")
+        return None
+    return work_folder
+
 ##==========================main==============================##
-if __name__ == '__main__':
-    items = os.listdir(os.getcwd())
-    dicom_dirs= [item for item in items if os.path.isdir(item) and not item.startswith('Img-')]
+def main():
+    work_folder = get_work_folder()
+    # 检查"父"目录是否存在且是一个目录
+    if os.path.exists(work_folder) and os.path.isdir(work_folder):
+        # 更改当前工作目录
+        os.chdir(work_folder)
+        print(f"Current working directory: {os.getcwd()}")
+    else:
+        print(f"The directory {work_folder} does not exist or is not a directory.")
+        return -1
+    # 遍历所有文件夹
+    items = os.listdir(work_folder)
+    dicom_dirs = [item for item in items if os.path.isdir(os.path.join(work_folder, item)) and not item.startswith('Img-')]
+    
+    # 给用户显示，请用户输入index
     number = len(dicom_dirs)
+    print('\n')
     for i in range(number):
         print(f"{i}: {dicom_dirs[i]}")
-    user_input = input("请选择第几个（全选输入-1）:\n")
+    user_input = input("\n请选择要处理的序号（用空格分隔多个序号，全选输入-1）：\n")
+    
+    # 解析用户输入
     try:
-        index = int(user_input)   
+        indices = user_input.split()
+        index_list = [int(index) for index in indices]
     except ValueError:
-        print("输入错误")
-    if index < number and index >= 0:
-        dicomdir_dir_handler(dicom_dirs[index])
-    elif index == -1:
+        print("输入错误，必须输入数字")
+        return
+
+    if -1 in index_list:
+        # 如果选择全选
         for dicom_dir in dicom_dirs:
-            print(dicom_dir)
-            dicomdir_dir_handler(dicom_dir)
+            print(f"正在处理实验：\n\t {dicom_dir}")
+            dicomdir_dir_handler(work_folder, dicom_dir)
     else:
-        print("请输入有效序号")
+        # 处理指定的序号
+        for index in index_list:
+            if 0 <= index < number:
+                dicomdir_dir_handler(work_folder, dicom_dirs[index])
+            else:
+                print(f"无效序号：{index}")
+
+if __name__ == '__main__':
+    main()
+
 
