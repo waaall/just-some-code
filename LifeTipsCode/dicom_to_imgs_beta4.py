@@ -151,14 +151,6 @@ def seq_dirs_handler(dicom_dir):
 
 ##===================对DICOMDIR所在文件夹的处理=====================##
 def dicomdir_dir_handler(work_folder, dicom_dir):
-    # 检查"父"目录是否存在且是一个目录
-    if os.path.exists(work_folder) and os.path.isdir(work_folder):
-        # 更改当前工作目录
-        os.chdir(work_folder)
-        print(f"Current working directory: {os.getcwd()}")
-    else:
-        print(f"The directory {work_folder} does not exist or is not a directory.")
-        return -1
     frames_dir_name = frames_dir_suffix + dicom_dir
     os.makedirs(frames_dir_name, exist_ok=True)
     options = {
@@ -192,8 +184,13 @@ def get_work_folder():
 ##==========================main==============================##
 def main():
     work_folder = get_work_folder()
-    if work_folder is None:
-        print("未能获取有效的目录路径")
+    # 检查"父"目录是否存在且是一个目录
+    if os.path.exists(work_folder) and os.path.isdir(work_folder):
+        # 更改当前工作目录
+        os.chdir(work_folder)
+        print(f"Current working directory: {os.getcwd()}")
+    else:
+        print(f"The directory {work_folder} does not exist or is not a directory.")
         return -1
     # 遍历所有文件夹
     items = os.listdir(work_folder)
