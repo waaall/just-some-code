@@ -4,7 +4,7 @@
     R-实验名-组名-视野编号.jpg
     G-实验名-组名-视野编号.jpg
     
-    最低要求：(满足该要求的会自动改为上述命名格式)
+    最低要求：(满足该要求的会自动改为上述命名格式)(大小写不敏感)
     1. 有R或G，且用-与其他字符隔开
     2. 需要合成的R和G文件名字其余部分完全一致
     ***-*-R-**.jpg
@@ -57,8 +57,9 @@ def normalize_filenames(folder_path):
         renamed = False
         # 查找包含 colors 中任何一个的部分并重构文件名
         for color in colors:
-            if color in parts:
-                c_index = parts.index(color)
+            parts_upper = [part.upper() for part in parts]  # 将文件名部分转换为大写
+            if color in parts_upper:
+                c_index = parts_upper.index(color)
                 new_name_parts = [color] + parts[:c_index] + parts[c_index+1:]
                 new_name = '-'.join(new_name_parts) + ext
                 
@@ -68,7 +69,7 @@ def normalize_filenames(folder_path):
                 
                 # 重命名文件
                 os.rename(old_file, new_file)
-                print(f"Renamed: {image} -> {new_name}")
+                # print(f"Renamed: {image} -> {new_name}")
                 renamed = True
                 break
         # 如果没有匹配到任何颜色，跳过并提示
