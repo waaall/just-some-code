@@ -3,6 +3,7 @@ import sys
 
 # 列出需要安装的库
 required_packages = [
+    'pyinstaller'
     'pillow',
     'numpy',
     'pydicom',

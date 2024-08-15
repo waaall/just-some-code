@@ -42,7 +42,8 @@ class DicomToImage:
             self.work_folder = work_folder
             os.chdir(work_folder)
             print(f"工作目录已设置为: {os.getcwd()}")
-            possble_dicom_dirs = os.listdir(work_folder)
+            items = os.listdir(work_folder)
+            possble_dicom_dirs = [item for item in items if os.path.isdir(os.path.join(work_folder, item)) and not item.startswith('Img-')]
             return possble_dicom_dirs
         else:
             raise ValueError(f"The directory {work_folder} does not exist or is not a directory.")
@@ -50,14 +51,12 @@ class DicomToImage:
 
     ##=============用户选择workfolder内的dicom_dirs,并行处理=============##
     def dicomdirs_handler(self, indexs_list):
-        if indexs_list[0] in self.possble_dicom_dirs:
-            self.dicom_dirs = indexs_list
-        else: 
-            for index in indexs_list:
-                if index in range(len(self.possble_dicom_dirs)):
-                    self.dicom_dirs.append(self.possble_dicom_dirs[index])
-        if not self.dicom_dirs:
-            return False
+        for index in indexs_list:
+            if index in range(len(self.possble_dicom_dirs)):
+                self.dicom_dirs.append(self.possble_dicom_dirs[index])
+            else:
+                return False
+
         for dicom_dir in self.dicom_dirs:
             self.dicom_dir = dicom_dir
             frames_dir_name = self.frames_dir_suffix + dicom_dir
@@ -154,20 +153,11 @@ class DicomToImage:
         # 如果列表不为空, 打印 "ok"
         if seqs_list:
             print(f"检测到DICOM文件夹: {seq_path}, 正在处理")
-            cores = max(1, os.cpu_count()-1)
-            with Pool(processes=cores) as pool:
+            with Pool(processes=os.cpu_count()) as pool:
                 # 使用 functools.partial 来固定一个参数
                 partial_process_task = partial(self.dcmseq_to_img, seq_dir)
-                
-                # 设置一个超时时间（例如每个任务5分钟），并捕获超时异常
-                try:
-                    # 使用 map 函数并行处理任务, 传递任务参数
-                    pool.map(partial_process_task, seqs_list)
-                except Exception:
-                    print(f"处理失败：{seq_path}")
-                finally:
-                    pool.close()
-                    pool.join()
+                # 使用 map 函数并行处理任务, 传递任务参数
+                pool.map(partial_process_task, seqs_list)
         else:
             print(f"{seq_path}文件夹内没有dicom文件")
     
