@@ -1,0 +1,6 @@
+numpy
+pillow
+pydicom
+matplotlib
+PySide6
+
