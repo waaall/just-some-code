@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/">
+    <file>resources/icons/branden.ico</file>
+  </qresource>
+</RCC>

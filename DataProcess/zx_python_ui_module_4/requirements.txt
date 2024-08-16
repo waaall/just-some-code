@@ -1,5 +1,6 @@
 numpy
 pillow
+pyserial
 pydicom
 matplotlib
 PySide6

@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         self.bind_dock_options()
 
     def bind_dock_options(self):
-        #链接button和stack窗口切换的链接
+        #链接button和stack窗口切换的链接, 添加绑定需要在函数__init_stack_windows中初始化对应页面
         self.dock_window.bind_dock2_but1('通信画图操作',partial(self.switch_stack, self.__plot_stack_name))
         self.dock_window.bind_dock3_but1('文件操作',partial(self.switch_stack, self.__file_stack_name))
 
@@ -82,7 +82,12 @@ class MainWindow(QMainWindow):
         self.help_window.devBut.clicked.connect(self.show_dev_help)
         # self.Stack.setCurrentIndex(1)
 
-        #实例化不同的四个workwindow, 并将其添加到stackwindow中
+        # 实例化plotwindow, 并将其添加到stackwindow中
+        self.plot_window = PlotWindow()
+        self.Stack.addWidget(self.plot_window)
+        self.plot_window.setObjectName(self.__plot_stack_name)
+
+        # 实例化filewindow, 并将其添加到stackwindow中
         self.file_window = FileWindow()
         self.Stack.addWidget(self.file_window)
         self.file_window.setObjectName(self.__file_stack_name)

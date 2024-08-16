@@ -13,80 +13,42 @@
 """
 ##=========================用到的库==========================##
 import os
-import time
-import queue
-from datetime import datetime
-from functools import partial
+import sys
 
 import pydicom
 import numpy as np
 from PIL import Image
-from PySide6.QtCore import QObject, Signal
+
+# 获取当前脚本所在目录的父目录
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from modules.files_basic import FilesBasic
+
 ##=========================================================
 ##=======               DICOM导出图片              =========
 ##=========================================================
-class DicomToImage(QObject):
-    result_signal = Signal(str)
+class DicomToImage(FilesBasic):
     def __init__(self, log_folder_name = 'dicom_handle_log',
-                 frame_dpi=800, frames_dir_suffix='Img-'):
+                 frame_dpi=800, out_dir_suffix='Img-'):
         super().__init__()
-        # 设置消息队列(初始化顺序不是随意的)
-        self.result_queue = queue.Queue()
-        
-        # work_folder是dicom文件夹的上一级文件夹，之后要通过set_work_folder改
-        self.__work_folder = os.getcwd()
 
         # 设置导出图片dpi & 导出图片文件夹的前缀名 & log文件夹名字
         self.frame_dpi = frame_dpi
         self.log_folder_name = log_folder_name
-        self.frames_dir_suffix = frames_dir_suffix
+        self.out_dir_suffix = out_dir_suffix
 
-        # 之后会根据函数set_dicom_dirs确定
-        self.dicom_dirs = []
-        self.dicom_dir = ''
-
-    def send_message(self, message):
-        print(message)
-        self.result_queue.put(message)
-        self.result_signal.emit(message)
-
-    ##======================设置workfolder======================##
-    def set_work_folder(self, work_folder):
-        """设置工作目录, 并确保目录存在"""
-        if os.path.exists(work_folder) and os.path.isdir(work_folder):
-            self.__work_folder = work_folder
-            os.chdir(work_folder)
-            self.possble_dicom_dirs = os.listdir(work_folder)
-            self.send_message(f"工作目录已设置为: {os.getcwd()}")
+    ##=====================处理(单个数据文件夹)函数======================##
+    def _data_dir_handler(self):
+        seq_dirs = self.__check_dicomdir()
+        if seq_dirs is not None:
+            for seq_dir in seq_dirs:
+                self.__seqdir_handler(seq_dir)
         else:
-            raise ValueError(f"The directory {work_folder} does not exist or is not a directory.")
-            # 遍历所有文件夹
-
-    ##=============用户选择workfolder内的dicom_dirs,并行处理=============##
-    def dicomdirs_handler(self, indexs_list):
-        if indexs_list[0] in self.possble_dicom_dirs:
-            self.dicom_dirs = indexs_list
-        else: 
-            for index in indexs_list:
-                if index in range(len(self.possble_dicom_dirs)):
-                    self.dicom_dirs.append(self.possble_dicom_dirs[index])
-        if not self.dicom_dirs:
-            return False
-        for dicom_dir in self.dicom_dirs:
-            self.dicom_dir = dicom_dir
-            frames_dir_name = self.frames_dir_suffix + dicom_dir
-            os.makedirs(frames_dir_name, exist_ok=True)
-            self.__seq_dirs_handler()
-
-        self.send_message('SUCCESS! log file saved.')
-        self.__save_log()
-
-        return True
-
+            self.send_message("请检查文件夹内目录结构")
+    
     ##======================DICOM序列保存图片======================##
     def dcmseq_to_img(self, seq_dir, seq_file):
         # 读取 DICOM 文件
-        seq_path = os.path.join(self.dicom_dir, seq_dir, seq_file)
+        seq_path = os.path.join(self._data_dir, seq_dir, seq_file)
         try:
             # 尝试读取 DICOM 文件
             ds = pydicom.dcmread(seq_path)
@@ -121,29 +83,20 @@ class DicomToImage(QObject):
             image = Image.fromarray(frame_data)
             # 构建输出文件名
             seq_name, _ = os.path.splitext(seq_file)    #去掉后缀
-            frames_dir_name = self.frames_dir_suffix + self.dicom_dir
-            output_filename = os.path.join(frames_dir_name, f'seq{seq_dir}-{seq_name}-frame_{i+1}.png')
+            out_dir_name = self.out_dir_suffix + self._data_dir
+            output_filename = os.path.join(out_dir_name, f'seq{seq_dir}-{seq_name}-frame_{i+1}.png')
             
             ## 保存为 PNG 图片 # image.show()
             image.save(output_filename, dpi=(self.frame_dpi, self.frame_dpi))
         self.send_message(f'OUTPUT SUCCESS: {seq_path}')
         return 1
 
-    ##====================并行处理(序列所在的文件夹)函数====================##
-    def __seq_dirs_handler(self):
-        seq_dirs = self.__check_dicomdir()
-        if seq_dirs is not None:
-            for seq_dir in seq_dirs:
-                self.__dicom_seqs_handler(seq_dir)
-        else:
-            self.send_message("请检查文件夹内目录结构")
-    
     ##=====================找到DICOM序列文件夹列表======================##
     def __check_dicomdir(self):
         try:
-            items = os.listdir(self.dicom_dir)
-            dicomdir_found = any(item == 'DICOMDIR' and os.path.isfile(os.path.join(self.dicom_dir, item)) for item in items)
-            folder_list = [item for item in items if os.path.isdir(os.path.join(self.dicom_dir, item)) and item != 'seq_imgs']
+            items = os.listdir(self._data_dir)
+            dicomdir_found = any(item == 'DICOMDIR' and os.path.isfile(os.path.join(self._data_dir, item)) for item in items)
+            folder_list = [item for item in items if os.path.isdir(os.path.join(self._data_dir, item)) and item != 'seq_imgs']
             if dicomdir_found:
                 return folder_list
             else:
@@ -154,8 +107,8 @@ class DicomToImage(QObject):
             return None
 
     ##==============找到DICOM序列并处理(调用dcmseq_to_img)==============##
-    def __dicom_seqs_handler(self, seq_dir):
-        seq_path = os.path.join(self.dicom_dir, seq_dir)
+    def __seqdir_handler(self, seq_dir):
+        seq_path = os.path.join(self._data_dir, seq_dir)
         items = os.listdir(seq_path)
         # 结果列表
         seqs_list = []
@@ -192,22 +145,9 @@ class DicomToImage(QObject):
             #         pool.join()
         else:
             self.send_message(f"{seq_path}文件夹内没有dicom文件")
-    
-    ##=======================保存log信息========================##
-    def __save_log(self):
-        os.makedirs(self.log_folder_name, exist_ok=True)
-        # 获取当前时间并格式化为文件名
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_filename = f"{current_time}.log"
-        log_file_path = os.path.join(self.log_folder_name, log_filename)
-        # 打开文件并写入队列中的内容
-        with open(log_file_path, 'w') as log_file:
-            while not self.result_queue.empty():
-                log_entry = self.result_queue.get()
-                log_file.write(f"{log_entry}\n")
 
-##===========================调试用==============================
-if __name__ == '__main__':
+##=====================main(单独执行时使用)=====================
+def main():
     # 获取用户输入的路径
     input_path = input("请复制实验文件夹所在目录的绝对路径(若Python代码在同一目录, 请直接按Enter): \n")
     
@@ -219,13 +159,13 @@ if __name__ == '__main__':
     
     DicomHandler = DicomToImage()
     DicomHandler.set_work_folder(work_folder)
-    possble_dicom_dirs = DicomHandler.possble_dicom_dirs
+    possble_dirs = DicomHandler.possble_dirs
     
     # 给用户显示，请用户输入index
-    number = len(possble_dicom_dirs)
+    number = len(possble_dirs)
     DicomHandler.send_message('\n')
     for i in range(number):
-        print(f"{i}: {possble_dicom_dirs[i]}")
+        print(f"{i}: {possble_dirs[i]}")
     user_input = input("\n请选择要处理的序号(用空格分隔多个序号): \n")
     
     # 解析用户输入
@@ -235,11 +175,10 @@ if __name__ == '__main__':
     except ValueError:
         DicomHandler.send_message("输入错误, 必须输入数字")
 
-    RESULT = DicomHandler.dicomdirs_handler(index_list)
+    RESULT = DicomHandler.selected_dirs_handler(index_list)
     if not RESULT:
         print("输入数字不在提供范围, 请重新运行")
 
-
-
-
-
+##=========================调试用============================
+if __name__ == '__main__':
+    main()
