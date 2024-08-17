@@ -1,0 +1,16 @@
+{
+    "General": {
+        "language": "English",
+        "theme": "Light",
+        "autosave": true
+    },
+    "Network": {
+        "use_proxy": false,
+        "proxy_address": "127.0.0.1",
+        "proxy_port": 8080
+    },
+    "Display": {
+        "resolution": "1920x1080",
+        "fullscreen": true
+    }
+}

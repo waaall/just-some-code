@@ -1,7 +1,4 @@
-'''
-这个类描述了help窗口, 为了控制单文件代码数量, 也为了让软件整体逻辑清晰, 单独拿出来作为一个文件
-'''
-import sys, re
+import sys
 # from PySide6.QtGui import *
 # # QPixmap, QIcon, QImage
 from PySide6.QtCore import *
@@ -9,7 +6,9 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 # QAction, QApplication, QFileDialog, QMainWindow, QMessageBox, QLineEdit, QWidget
 
-
+##=========================================================
+##=======                 帮助界面                 =========
+##=========================================================
 class HelpWindow(QWidget):
     
     def __init__(self):
@@ -39,8 +38,7 @@ class HelpWindow(QWidget):
         mainLayout.addWidget(GroupBox1)
         mainLayout.addWidget(GroupBox2)
 
-
-##===============调试用==================
+##===========================调试用==============================
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     trial = HelpWindow()

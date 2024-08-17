@@ -1,3 +1,4 @@
+import sys
 from widgets import *
 from main_window import MainWindow
 

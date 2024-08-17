@@ -1,4 +1,4 @@
-import sys, time
+import sys
 from functools import partial
 from PySide6.QtGui import *
 # QPixmap, QPainter
@@ -7,11 +7,7 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 # QAction, QApplication, QFileDialog, QMainWindow, QMessageBox, QTextEdit, QWidget
 
-from widgets.dock_widget import DockWindow
-from widgets.help_page import HelpWindow
-from widgets.file_page import FileWindow
-from widgets.images_page import ImagesHanderWindow
-from widgets.plot_page import PlotWindow
+from widgets import * 
 
 ##=========================================================
 ##=======                 主界面类                 =========
@@ -26,9 +22,10 @@ class MainWindow(QMainWindow):
         self.__file_stack_name = 'stack_file'
         self.__plot_stack_name = 'stack_plot'
         self.__help_stack_name = 'stack_help'
+        self.__setting_stack_name = 'stack_setting'
         
         #初始化StatusBar
-        self.createStatusBar()
+        self.send_status_message("一切就绪, 确保您阅读文档, 再进行操作")
 
         # 初始化主窗口(centralWidget)和Dock
         # 注意有一些顺序是不能更改的，因为有依赖关系
@@ -42,12 +39,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Branden_Tools")
         
         ##================bind options ==================
-        self.bind_dock_options()
+        self.bind_options()
 
-    def bind_dock_options(self):
-        #链接button和stack窗口切换的链接, 添加绑定需要在函数__init_stack_windows中初始化对应页面
+    def bind_options(self):
+        # 链接button和stack窗口切换的链接, 添加绑定需要在函数__init_stack_windows中初始化对应页面
+        self.dock_window.bind_dock1_but1('设置',partial(self.switch_stack, self.__setting_stack_name))
         self.dock_window.bind_dock2_but1('通信画图操作',partial(self.switch_stack, self.__plot_stack_name))
         self.dock_window.bind_dock3_but1('文件操作',partial(self.switch_stack, self.__file_stack_name))
+
+        # 保存设置信号发送到main window 的 status bar
+        self.setting_window.save_signal.connect(self.send_status_message)
 
     ##=======================左边Dock栏=======================
     def __init_dock(self):
@@ -75,6 +76,12 @@ class MainWindow(QMainWindow):
         self.Stack = QStackedWidget()
         self.Stack.addWidget(QWidget())
 
+        # 实例化settingwindow, 并将其添加到stackwindow中
+        self.setting_window = SettingWindow()
+        self.Stack.addWidget(self.setting_window)
+        self.setting_window.setObjectName(self.__setting_stack_name)
+
+        # 实例化helpwindow, 并将其添加到stackwindow中
         self.help_window = HelpWindow()
         self.Stack.addWidget(self.help_window)
         self.help_window.setObjectName(self.__help_stack_name)
@@ -93,8 +100,8 @@ class MainWindow(QMainWindow):
         self.file_window.setObjectName(self.__file_stack_name)
 
     ##=======================主界面的功能区=======================
-    def createStatusBar(self):
-        self.statusBar().showMessage("一切就绪, 确保您阅读文档, 再进行操作")
+    def send_status_message(self, message):
+        self.statusBar().showMessage(message)
 
     def __createActions(self):
         # 创建 QAction 对象

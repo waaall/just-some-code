@@ -19,7 +19,7 @@ import pydicom
 import numpy as np
 from PIL import Image
 
-# 获取当前脚本所在目录的父目录
+# 获取当前项目根目录,并加入系统环境变量(临时)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules.files_basic import FilesBasic
 
