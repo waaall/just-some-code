@@ -17,6 +17,7 @@ required_packages = [
     'pyside6',
     'scipy',
     'scikit-image',
+    'opencv-python',
 ]
 
 def install_packages(packages):

@@ -20,16 +20,28 @@ import pydicom
 import numpy as np
 from PIL import Image
 
-# 获取当前项目根目录,并加入系统环境变量(临时)
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 获取当前文件所在目录,并加入系统环境变量(临时)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(current_dir))
 from modules.files_basic import FilesBasic
+
+# 添加 DLL 搜索路径
+if os.name == 'nt':  # 仅在 Windows 系统上执行
+    # 设置 DLL 搜索路径，libs 文件夹位于 modules 的上一级目录
+    libs_dir = os.path.join(current_dir, '..', 'libs')
+    try:
+        os.add_dll_directory(libs_dir)
+        print(f"Added DLL directory: {libs_dir}")
+    except AttributeError:
+        # Python < 3.8 没有 os.add_dll_directory 方法，直接修改 PATH
+        os.environ['PATH'] = f"{libs_dir};" + os.environ['PATH']
 
 ##=========================================================
 ##=======               DICOM导出图片              =========
 ##=========================================================
 class DicomToImage(FilesBasic):
     def __init__(self, log_folder_name = 'dicom_handle_log',
-                 fps=20, frame_dpi=800, out_dir_suffix='Img-'):
+                 fps=10, frame_dpi=800, out_dir_suffix='Img-'):
         super().__init__()
 
         # 设置导出图片dpi & 导出图片文件夹的前缀名 & log文件夹名字
