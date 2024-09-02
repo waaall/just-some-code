@@ -4,4 +4,4 @@ pyserial
 pydicom
 matplotlib
 PySide6
-
+opencv-python
