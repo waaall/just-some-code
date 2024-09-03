@@ -10,4 +10,3 @@ from . file_page import FileWindow
 from . images_page import ImagesHanderWindow
 from . help_page import HelpWindow
 from . plot_page import PlotWindow
-from . setting_page import SettingWindow

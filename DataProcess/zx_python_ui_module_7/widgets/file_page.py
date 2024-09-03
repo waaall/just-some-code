@@ -32,60 +32,67 @@ class FileWindow(QWidget):
         self.setLayout(mainLayout)
 
     def __init_workfolder_group(self):
-        self.workfolder_group = QGroupBox("begin",self)
-        layout = QVBoxLayout()
+        self.workfolder_group = QGroupBox("一:begin",self)
+        group_layout = QVBoxLayout()
 
-        chooseFolderBut = QPushButton(f"选择工作目录", self)
-        layout.addWidget(chooseFolderBut)
+        chooseFolderBut = QPushButton(f"1.选择工作目录", self)
+        group_layout.addWidget(chooseFolderBut)
         chooseFolderBut.clicked.connect(self.__get_work_folder)
         
-        self.__work_folder_label = QLabel(self)
-        self.__work_folder_label.resize(self.__work_folder_label.sizeHint())
-        layout.addWidget(self.__work_folder_label)
+        # 用来显示工作目录内的文件和文件夹
+        files_layout = QHBoxLayout()
+        self.__work_folder_label = QPlainTextEdit(self)
+        self.__work_folder_label.setReadOnly(True)
+        # self.__work_folder_label.resize(self.__work_folder_label.sizeHint())
+        files_layout.addWidget(self.__work_folder_label)
 
-        hint_lable1 = QLabel('请选择想要处理的序号:',self)
-        layout.addWidget(hint_lable1)
+        select_layout = QVBoxLayout()
+        hint_lable1 = QLabel('2.请选择想要处理的序号:',self)
+        select_layout.addWidget(hint_lable1)
 
         self.__user_index = QLineEdit(self)
-        layout.addWidget(self.__user_index)
+        select_layout.addWidget(self.__user_index)
 
-        self.workfolder_group.setLayout(layout)
-
-        self.get_select_file_but = QPushButton('提取选中序号',self)
+        self.get_select_file_but = QPushButton('3.提取选中序号',self)
         self.get_select_file_but.clicked.connect(self.__get_work_folder_indexs)
-        layout.addWidget(self.get_select_file_but)
+        select_layout.addWidget(self.get_select_file_but)
 
         # lable本用来显示执行结果，后决定传递变量由controler显示
         self.get_select_result = QLabel(self)
-        layout.addWidget(self.get_select_result)
+        select_layout.addWidget(self.get_select_result)
+
+        # 这几个layout层级嵌套
+        files_layout.addLayout(select_layout)
+        group_layout.addLayout(files_layout)
+        self.workfolder_group.setLayout(group_layout)
 
     ##===============创建文件的具体操作界面=================
     def __init_file_option_group(self):
-        self.file_option_group = QGroupBox('文件操作',self)
-        layout = QGridLayout()
+        self.file_option_group = QGroupBox('二:文件操作',self)
+        group_layout = QGridLayout()
 
         # 第一个file操作按钮
         self.file_but1 = QPushButton('file_but1',self)
-        layout.addWidget(self.file_but1, 0,0)
+        group_layout.addWidget(self.file_but1, 0,0)
 
         # 第一个file操作按钮的执行信息显示
         self.file_but1_result = QPlainTextEdit(self)
         self.file_but1_result.setReadOnly(True)
-        layout.addWidget(self.file_but1_result, 1,0)
+        group_layout.addWidget(self.file_but1_result, 1,0)
 
         # 第二个file操作按钮
         self.file_but2 = QPushButton('file_but2',self)
         # self.file_but2.setToolTip('')
         self.file_but2.resize(self.file_but2.sizeHint())
         # self.file_but2.clicked.connect(self.copyIntimeFile)
-        layout.addWidget(self.file_but2, 0,1)
+        group_layout.addWidget(self.file_but2, 0,1)
         
         # 第二个file操作按钮的执行信息显示
         self.file_but2_result = QPlainTextEdit(self)
         self.file_but2_result.setReadOnly(True)
-        layout.addWidget(self.file_but2_result, 1,1)
+        group_layout.addWidget(self.file_but2_result, 1,1)
 
-        self.file_option_group.setLayout(layout)
+        self.file_option_group.setLayout(group_layout)
 
     def __get_work_folder(self):
         self.__work_folder = QFileDialog.getExistingDirectory(self,"选择目录","./")
@@ -94,7 +101,7 @@ class FileWindow(QWidget):
         content = "当前目录内文件为:\n\n"
         for i, item in enumerate(self.__work_folder_items):
             content += f"{i}: {item}\n"
-        self.__work_folder_label.setText(content)
+        self.__work_folder_label.setPlainText(content)
 
     def __get_work_folder_indexs(self):
         # 将用户输入的索引字符串进行预处理
@@ -121,7 +128,7 @@ class FileWindow(QWidget):
             else:
                 wanted_items.append(self.__work_folder_items[index])
         # 如果所有检查通过，显示成功消息并发出信号
-        self.get_select_result.setText('成功提取序号')
+        self.get_select_result.setText('成功提取序号, 可以进行文件操作')
         self.selected_signal.emit(self.__work_folder, wanted_items)
 
     def bind_file_but1(self, new_name, slot_func):

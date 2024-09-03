@@ -1,0 +1,41 @@
+{
+    "General": {
+        "language": "French",
+        "autosave": true
+    },
+    "Network": {
+        "Serial": {
+            "baud_rate": 800,
+            "parity": "Even",
+            "data_bits": 4,
+            "stop_bits": 1
+        },
+        "Internet": {
+            "use_proxy": false,
+            "proxy_address": "127.0.0.1",
+            "proxy_port": "8080"
+        }
+    },
+    "Display": {
+        "Apparence": {
+            "theme": "Light",
+            "resolution": "1920x1080",
+            "fullscreen": true
+        },
+        "Motion": {
+            "motion_on": true
+        }
+    },
+    "Batch_Files": {
+        "Dicom": {
+            "dicom_log_folder_name": "dicom_handle_log",
+            "fps": 10,
+            "frame_dpi": 800,
+            "dicom_out_dir_suffix": "Img-"
+        },
+        "MergeColor": {
+            "mergecolor_log_folder_name": "merge_color_log",
+            "mergecolor_out_dir_suffix": "merge-"
+        }
+    }
+}

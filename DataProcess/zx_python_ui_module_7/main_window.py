@@ -7,8 +7,8 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 # QAction, QApplication, QFileDialog, QMainWindow, QMessageBox, QTextEdit, QWidget
 
-from widgets import * 
-
+from widgets import *
+from modules.app_settings import SettingWindow
 ##=========================================================
 ##=======                 主界面类                 =========
 ##=========================================================
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         # 链接button和stack窗口切换的链接, 添加绑定需要在函数__init_stack_windows中初始化对应页面
         self.dock_window.bind_dock1_but1('设置',partial(self.switch_stack, self.__setting_stack_name))
         self.dock_window.bind_dock2_but1('通信画图操作',partial(self.switch_stack, self.__plot_stack_name))
-        self.dock_window.bind_dock3_but1('文件操作',partial(self.switch_stack, self.__file_stack_name))
+        self.dock_window.bind_dock3_but1('批量文件操作',partial(self.switch_stack, self.__file_stack_name))
 
         # 保存设置信号发送到main window 的 status bar
         self.setting_window.save_signal.connect(self.send_status_message)

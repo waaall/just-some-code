@@ -6,8 +6,9 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
-# global_variables
+# 设置参数
 from .app_settings import AppSettings
+from .app_settings import SettingWindow
 
 # 多文件批量操作基类
 from .files_basic import FilesBasic
