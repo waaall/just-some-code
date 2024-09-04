@@ -52,33 +52,24 @@ def main():
 ##============================绑定mergeRGs===============================
     # 初始化绑定
     merge_colors_bind = BatchFilesBinding(MergeColors(), '颜色通道合成')
-
     # file_window信号数据selected_signal传入绑定对象merge_colors_bind
-    window.file_window.selected_signal.connect(merge_colors_bind.get_user_select)
-        
+    window.file_window.selected_signal.connect(merge_colors_bind.get_user_select)      
     # dicom对象信息信号绑定file_window显示
-    merge_colors_bind.handler_object.result_signal.connect(window.file_window.set_file_but1_result)
-
+    merge_colors_bind.handler_object.result_signal.connect(window.file_window.set_operation_result)
     # file_window操作按钮绑定modules的操作
-    window.file_window.bind_file_but1(merge_colors_bind.bind_name, merge_colors_bind.handler_binding)
-    
+    window.file_window.add_file_operation(merge_colors_bind.bind_name, merge_colors_bind.handler_binding)
     # 设置的参数被修改的信号数据绑定update_setting函数
     window.setting_window.settings.changed_signal.connect(merge_colors_bind.update_setting)
-
 
 ##=============================绑定dicom================================
     # 初始化dicom绑定
     dicom_bind = BatchFilesBinding(DicomToImage(), 'DICOM处理') 
-
     # file_window信号数据selected_signal传入绑定对象dicom_bind
-    window.file_window.selected_signal.connect(dicom_bind.get_user_select)
-        
+    window.file_window.selected_signal.connect(dicom_bind.get_user_select)   
     # dicom对象信息信号绑定file_window显示
-    dicom_bind.handler_object.result_signal.connect(window.file_window.set_file_but2_result)
-
+    dicom_bind.handler_object.result_signal.connect(window.file_window.set_operation_result)
     # file_window操作按钮绑定modules的操作
-    window.file_window.bind_file_but2(dicom_bind.bind_name, dicom_bind.handler_binding)
-
+    window.file_window.add_file_operation(dicom_bind.bind_name, dicom_bind.handler_binding)
     # 设置的参数被修改的信号数据绑定update_setting函数
     window.setting_window.settings.changed_signal.connect(dicom_bind.update_setting)
     ##=============================app运行=============================##

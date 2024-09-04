@@ -34,7 +34,6 @@ class MergeColors(FilesBasic):
         self.log_folder_name = log_folder_name
         self.out_dir_suffix = out_dir_suffix
 
-
         # 设置导出图片dpi & 导出图片的前缀后缀等
         self.frame_dpi = frame_dpi
         self.colors = colors
@@ -56,7 +55,6 @@ class MergeColors(FilesBasic):
         if not os.path.exists(merge_dir):
             os.makedirs(merge_dir)
             
-    
         for image_r, image_g in pairs:
             parts = image_r.split('-', 1)     # 分割文件名, 忽略扩展名
             base_name, ext = os.path.splitext(parts[1]) # 获取文件名
