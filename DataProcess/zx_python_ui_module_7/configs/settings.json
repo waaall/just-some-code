@@ -1,41 +1,41 @@
 {
     "General": {
-        "language": "French",
+        "language": "English",
         "autosave": true
     },
     "Network": {
         "Serial": {
-            "baud_rate": 800,
-            "parity": "Even",
+            "baud_rate": 9600,
+            "parity": "None",
             "data_bits": 4,
-            "stop_bits": 1
+            "stop_bits": "0"
         },
         "Internet": {
-            "use_proxy": false,
+            "use_proxy": true,
             "proxy_address": "127.0.0.1",
             "proxy_port": "8080"
         }
     },
     "Display": {
         "Apparence": {
-            "theme": "Light",
-            "resolution": "1920x1080",
-            "fullscreen": true
+            "theme": "Dark",
+            "resolution": "1280x720",
+            "fullscreen": false
         },
         "Motion": {
             "motion_on": true
         }
     },
     "Batch_Files": {
-        "Dicom": {
-            "dicom_log_folder_name": "dicom_handle_log",
+        "DicomToImage": {
+            "log_folder_name": "dicom_handle_log",
             "fps": 10,
             "frame_dpi": 800,
-            "dicom_out_dir_suffix": "Img-"
+            "out_dir_suffix": "Img-"
         },
-        "MergeColor": {
-            "mergecolor_log_folder_name": "merge_color_log",
-            "mergecolor_out_dir_suffix": "merge-"
+        "MergeColors": {
+            "log_folder_name": "merge_color_log",
+            "out_dir_suffix": "merge-"
         }
     }
 }

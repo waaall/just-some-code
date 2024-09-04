@@ -7,18 +7,21 @@ from modules.merge_colors import MergeColors
 
 import resources_rc
 ##=========================================================
-##=======               绑定modules               =========
+##=======          绑定文件批量处理modules          =========
 ##=========================================================
-
-class DicomBinding(QThread):
-    def __init__(self, bind_name = 'DICOM处理'):
+class BatchFilesBinding(QThread):
+    def __init__(self, object, bind_name):
         super().__init__()
         self.work_folder = ''
         self.wanted_items = []
         self.bind_name = bind_name
+        self.handler_object = object  # 直接接收处理对象实例
 
-        # 实例化DicomToImage
-        self.DicomHandler = DicomToImage()
+    def update_setting(self, object_name, attribute, value):
+        # 检查处理对象是否与传递的 object_name 匹配，并且对象有这个属性
+        if self.handler_object.__class__.__name__ == object_name and hasattr(self.handler_object, attribute):
+            setattr(self.handler_object, attribute, value)
+            print(f"From BatchFilesBinding:\n\tUpdated {attribute} to {value} in {object_name}\n")
 
     def get_user_select(self, work_folder, wanted_items):
         self.work_folder = work_folder
@@ -26,36 +29,12 @@ class DicomBinding(QThread):
 
     def run(self):
         # 在线程中执行耗时操作
-        self.DicomHandler.set_work_folder(self.work_folder)
-        self.DicomHandler.selected_dirs_handler(self.wanted_items)
+        self.handler_object.set_work_folder(self.work_folder)
+        self.handler_object.selected_dirs_handler(self.wanted_items)
 
-    def dicom_handler_bind(self):
+    def handler_binding(self):
         # 启动线程
         self.start()
-
-class MergeColorsBinding(QThread):
-    def __init__(self, bind_name = 'RG通道合成'):
-        super().__init__()
-        self.work_folder = ''
-        self.wanted_items = []
-        self.bind_name = bind_name
-
-        # 实例化DicomToImage
-        self.ColorsHandler = MergeColors()
-
-    def get_user_select(self, work_folder, wanted_items):
-        self.work_folder = work_folder
-        self.wanted_items = wanted_items
-
-    def dicom_handler_bind(self):
-        # 启动线程
-        self.start()
-
-    def run(self):
-        # 在线程中执行耗时操作
-        self.ColorsHandler.set_work_folder(self.work_folder)
-        self.ColorsHandler.selected_dirs_handler(self.wanted_items)
-
 
 ##=========================================================
 ##=======                main函数                 =========
@@ -70,34 +49,39 @@ def main():
     # 初始化主窗口
     window = MainWindow()
     # window.setWindowIcon(app_icon)
-
 ##============================绑定mergeRGs===============================
     # 初始化绑定
-    mergeRGs_bind = MergeColorsBinding()
-    # file_window信号数据selected_signal传入绑定对象mergeRGs_bind
-    window.file_window.selected_signal.connect(mergeRGs_bind.get_user_select)
+    merge_colors_bind = BatchFilesBinding(MergeColors(), '颜色通道合成')
+
+    # file_window信号数据selected_signal传入绑定对象merge_colors_bind
+    window.file_window.selected_signal.connect(merge_colors_bind.get_user_select)
         
     # dicom对象信息信号绑定file_window显示
-    mergeRGs_bind.ColorsHandler.result_signal.connect(window.file_window.set_file_but1_result)
+    merge_colors_bind.handler_object.result_signal.connect(window.file_window.set_file_but1_result)
 
     # file_window操作按钮绑定modules的操作
-    window.file_window.bind_file_but1(mergeRGs_bind.bind_name, mergeRGs_bind.dicom_handler_bind)
+    window.file_window.bind_file_but1(merge_colors_bind.bind_name, merge_colors_bind.handler_binding)
+    
+    # 设置的参数被修改的信号数据绑定update_setting函数
+    window.setting_window.settings.changed_signal.connect(merge_colors_bind.update_setting)
 
 
 ##=============================绑定dicom================================
     # 初始化dicom绑定
-    dicom_bind = DicomBinding()
+    dicom_bind = BatchFilesBinding(DicomToImage(), 'DICOM处理') 
+
     # file_window信号数据selected_signal传入绑定对象dicom_bind
     window.file_window.selected_signal.connect(dicom_bind.get_user_select)
         
     # dicom对象信息信号绑定file_window显示
-    dicom_bind.DicomHandler.result_signal.connect(window.file_window.set_file_but2_result)
+    dicom_bind.handler_object.result_signal.connect(window.file_window.set_file_but2_result)
 
     # file_window操作按钮绑定modules的操作
-    window.file_window.bind_file_but2(dicom_bind.bind_name, dicom_bind.dicom_handler_bind)
+    window.file_window.bind_file_but2(dicom_bind.bind_name, dicom_bind.handler_binding)
 
-
-    # app运行
+    # 设置的参数被修改的信号数据绑定update_setting函数
+    window.setting_window.settings.changed_signal.connect(dicom_bind.update_setting)
+    ##=============================app运行=============================##
     window.show()
     sys.exit(app.exec())
 

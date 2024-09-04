@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
         self.dock_window.bind_dock3_but1('批量文件操作',partial(self.switch_stack, self.__file_stack_name))
 
         # 保存设置信号发送到main window 的 status bar
-        self.setting_window.save_signal.connect(self.send_status_message)
+        self.setting_window.result_signal.connect(self.send_status_message)
 
     ##=======================左边Dock栏=======================
     def __init_dock(self):
@@ -80,14 +80,15 @@ class MainWindow(QMainWindow):
         self.setting_window = SettingWindow()
         self.Stack.addWidget(self.setting_window)
         self.setting_window.setObjectName(self.__setting_stack_name)
-
+        self.Stack.setCurrentWidget(self.setting_window)
+        # self.Stack.setCurrentIndex(0)
+        
         # 实例化helpwindow, 并将其添加到stackwindow中
         self.help_window = HelpWindow()
         self.Stack.addWidget(self.help_window)
         self.help_window.setObjectName(self.__help_stack_name)
         self.help_window.userBut.clicked.connect(self.show_user_help)
         self.help_window.devBut.clicked.connect(self.show_dev_help)
-        # self.Stack.setCurrentIndex(1)
 
         # 实例化plotwindow, 并将其添加到stackwindow中
         self.plot_window = PlotWindow()

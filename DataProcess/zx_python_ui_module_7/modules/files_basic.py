@@ -28,7 +28,7 @@ class FilesBasic(QObject):
 
     ##========================发送log信息========================##
     def send_message(self, message):
-        print(message)
+        print(f"From FilesBasic: \n\t{message}\n")
         self.result_queue.put(message)
         self.result_signal.emit(message)
 

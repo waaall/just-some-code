@@ -1,0 +1,27 @@
+        self.General_Settingmap = {
+            "language":         (["English", "French", "Spanish"], "General", "language"),
+            "autosave":         ("General", "autosave")
+        }
+        self.Network_Settingmap = {
+            "serial_baud_rate": ([800, 1200, 2400, 4800, 9600, 14400, 19200, 38400], "Network", "Serial", "baud_rate"),
+            "serial_data_bits": ([4, 8], "Network", "Serial", "data_bits"),
+            "serial_stop_bits": (["1", "0", "None"], "Network", "Serial", "stop_bits"),
+            "serial_parity":    (["None", "Even", "Odd"], "Network", "Serial", "parity"),
+            "use_proxy":        ("Network", "Internet", "use_proxy"),
+            "proxy_address":    ("Network", "Internet", "proxy_address"),
+            "proxy_port":       ("Network", "Internet", "proxy_port")
+        }
+        self.Display_Settingmap = {
+            "resolution":       (["1920x1080", "1280x720", "800x600"], "Display", "Apparence", "resolution"),
+            "fullscreen":       ("Display", "Apparence", "fullscreen"),
+            "theme":            (["Light", "Dark"], "Display", "Apparence", "theme"),
+            "motion_on":        ("Display", "Motion", "motion_on")
+        }
+        self.Batch_Files_Settingmap = {
+            "dicom_log_folder_name": ("Batch_Files", "Dicom", "dicom_log_folder_name"),
+            "dicom_fps":        ([10, 20, 30], "Batch_Files", "Dicom", "fps"),
+            "dicom_frame_dpi":  ([100, 200, 400, 800], "Batch_Files", "Dicom", "frame_dpi"),
+            "dicom_out_dir_suffix": ("Batch_Files", "Dicom", "dicom_out_dir_suffix"),
+            "mergecolor_log_folder_name": ("Batch_Files", "MergeColor", "mergecolor_log_folder_name"),
+            "mergecolor_out_dir_suffix": ("Batch_Files", "MergeColor", "mergecolor_out_dir_suffix"),
+        }
