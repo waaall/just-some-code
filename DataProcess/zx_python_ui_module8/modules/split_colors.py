@@ -13,31 +13,30 @@ from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules.files_basic import FilesBasic
 ##=========================================================
-##=======                分离颜色通道              =========
+##=======                分离色彩通道              =========
 ##=========================================================
 class SplitColors(FilesBasic):
     def __init__(self, log_folder_name='split_colors_log',frame_dpi=800,
                   colors = None, out_dir_suffix='split-'):
         super().__init__()
         
-        # 定义可能的颜色通道与索引的对应关系
-        self.colors_map = {'R': 0, 'G': 1, 'B': 2}
-        default_colors = list(self.colors_map.keys())
-        # 设置分离的颜色，如果 colors 不为 None 且合法则使用，否则使用默认的 RGB
+        # 定义可能的色彩通道, 顺序不能变, 跟pillow处理有关
+        self.__default_colors = ['R', 'G', 'B']
+
+        # 设置分离的色彩，如果 colors 不为 None 且合法则使用，否则使用默认的 RGB
         if colors is None:
-            self.colors = default_colors
+            self.colors = self.__default_colors
         else:
             # 检查传入的 colors 是否有效
-            invalid_colors = [c for c in colors if c not in default_colors]
+            invalid_colors = [c for c in colors if c not in self.__default_colors]
             if invalid_colors:
-                self.send_message(
-                    f"From SplitColors:\n\tcolors格式错误, 设置成{default_colors}\n"
-                )
-                self.colors = default_colors
+                self.send_message(f"colors格式错误, 设置成{self.__default_colors}")
+                self.colors = self.__default_colors
             else:
                 self.colors = colors
 
-        self.suffixs = ['.jpg', '.png', '.jpeg'] # 需要处理的图片类型
+        # 需要处理的图片类型
+        self.suffixs = ['.jpg', '.png', '.jpeg'] 
         
         # 设置导出图片文件夹的前缀名 & log文件夹名字
         self.log_folder_name = log_folder_name
@@ -61,30 +60,48 @@ class SplitColors(FilesBasic):
             img_path = os.path.join(self._data_dir, img_name)
             print(img_path)
 
-            # 打开图片并分离颜色通道
+            # 打开图片并分离色彩通道
             with Image.open(img_path) as img:
                 # 分离出红、绿、蓝通道;img_clrs 是一个包含 (R, G, B) 的元组
-                img_clrs = img.split()
+                try:
+                    if img.mode != 'RGB':
+                        self.send_message(f"{img_name}不是RGB格式,尝试转换...")
+                        img = img.convert('RGB')
+    
+                    img_clrs = img.split()
+                except Exception as e:
+                    self.send_message(f"{img_name}色彩分离失败,错误详情:{str(e)}")
+                    return
+
+                # 创建空图像模板,全黑的灰度图像,大小与原图相同
+                black = Image.new('L', img.size)
 
                 # 根据需要保存相应的通道
                 for color in self.colors:
-                    if color in self.colors_map:
-                        channel_index = self.colors_map[color]
-                        channel_img = img_clrs[channel_index]
-                        path = os.path.join(self.out_dir_name, f"{color}_{img_name}")
-                        channel_img.save(path)
+                    # 获取通道索引
+                    color_index = self.__default_colors.index(color)
+    
+                    # 创建RGB组合, 将其他通道设为黑色
+                    channels = [(channel if i == color_index else black) for i, channel in enumerate(img_clrs)]
+    
+                    # 合并通道并保存
+                    out_img = Image.merge('RGB', tuple(channels))
+                    path = os.path.join(self.out_dir_name, f"{color}_{img_name}")
+                    out_img.save(path)
+                
+                self.send_message(f"{img_name}分离色彩,保存到{self.out_dir_name}")
 
     ##======================返回所有的图片文件名=======================##
     def get_imgs_names(self):
         if not os.path.isdir(self._data_dir):
-            self.send_message(f"Error: Folder \"{self._data_dir}\" does not exist.")
+            self.send_message(f"Error: Folder「{self._data_dir}」does not exist.")
             return None
     
         self.__img_names = [f for f in os.listdir(self._data_dir) if not f.startswith('.')
                                 and any(f.endswith(suffix) for suffix in self.suffixs)]
         
         if not self.__img_names:
-            self.send_message(f"Error: No image files found in folder \"{self._data_dir}\".")
+            self.send_message(f"Error: No image files found in folder「{self._data_dir}」.")
             return None
 
 ##=====================main(单独执行时使用)=====================
