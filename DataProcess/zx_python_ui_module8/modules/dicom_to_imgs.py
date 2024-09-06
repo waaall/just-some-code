@@ -14,6 +14,7 @@
 ##=========================用到的库==========================##
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import pydicom
@@ -44,6 +45,9 @@ class DicomToImage(FilesBasic):
                  fps=10, frame_dpi=800, out_dir_suffix='Img-'):
         super().__init__()
 
+        # 重写父类suffixs,为dicom文件可能的后缀
+        self.suffixs = ['.dcm', '']
+
         # 设置导出图片dpi & 导出图片文件夹的前缀名 & log文件夹名字
         self.fps = fps
         self.frame_dpi = frame_dpi
@@ -51,21 +55,33 @@ class DicomToImage(FilesBasic):
         self.out_dir_suffix = out_dir_suffix
 
     ##=====================处理(单个数据文件夹)函数======================##
-    def _data_dir_handler(self):
-        seq_dirs = self.__check_dicomdir()
-        if seq_dirs is not None:
+    def _data_dir_handler(self, _data_dir):
+        # 检查_data_dir,为空则终止,否则创建输出文件夹,继续执行
+        seq_dirs = self.__check_dicomdir(_data_dir)
+        if not seq_dirs:
+            self.send_message(f"文件夹「{_data_dir}」为空,请检查目录结构")
+            return
+        os.makedirs(self.out_dir_suffix + _data_dir, exist_ok=True)
+
+        max_works = min(self.max_threads, os.cpu_count(), len(seq_dirs)*2)
+        with ThreadPoolExecutor(max_workers=max_works) as executor:
+            # 获取dicom序列文件名list,并多线程调用处理每个dicom序列
             for seq_dir in seq_dirs:
-                self.__seqdir_handler(seq_dir)
-        else:
-            self.send_message("请检查文件夹内目录结构")
+                seqs_list = self._get_filenames_by_suffix(os.path.join(_data_dir, seq_dir))
+                if not seqs_list:
+                    self.send_message(f"{seq_dir}文件夹内没有dicom文件,已跳过")
+                    continue
+                for seq in seqs_list:
+                    executor.submit(self.dcmseq_to_img, _data_dir, seq_dir, seq)
     
     ##======================DICOM序列保存图片======================##
-    def dcmseq_to_img(self, seq_dir, seq_file):
+    def dcmseq_to_img(self,_data_dir, seq_dir, seq_file):
         # 读取 DICOM 文件
-        seq_path = os.path.join(self._data_dir, seq_dir, seq_file)
+        seq_path = os.path.join(_data_dir, seq_dir, seq_file)
         try:
             # 尝试读取 DICOM 文件
             ds = pydicom.dcmread(seq_path)
+            # self.send_message(f"检测到DICOM文件: {seq_path}, 正在处理")
         except Exception:
             # 如果读取失败, 不抛出异常, 直接返回 0
             self.send_message(f"ERROR!\t{seq_path}读取失败")
@@ -81,7 +97,7 @@ class DicomToImage(FilesBasic):
 
         # 视频写入初始化
         ref_height, ref_width = pixel_array[0].shape if num_frames > 1 else pixel_array.shape
-        video_filename = os.path.join(self.out_dir_name, f'seq{seq_dir}-{seq_name}.mp4')
+        video_filename = os.path.join(self.out_dir_suffix + _data_dir, f'seq{seq_dir}-{seq_name}.mp4')
         # 检测视频文件是否存在，如果存在则删除
         if os.path.exists(video_filename):
             os.remove(video_filename)
@@ -103,7 +119,7 @@ class DicomToImage(FilesBasic):
             # 创建图像对象
             image = Image.fromarray(frame_data)
             # 帧图片输出文件名
-            image_filename = os.path.join(self.out_dir_name, f'seq{seq_dir}-{seq_name}-frame_{i+1}.png')
+            image_filename = os.path.join(self.out_dir_suffix + _data_dir, f'seq{seq_dir}-{seq_name}-frame_{i+1}.png')
             ## 保存为 PNG 图片 # image.show()
             image.save(image_filename, dpi=(self.frame_dpi, self.frame_dpi))
             
@@ -134,11 +150,11 @@ class DicomToImage(FilesBasic):
         return 1
 
     ##=====================找到DICOM序列文件夹列表======================##
-    def __check_dicomdir(self):
+    def __check_dicomdir(self, _data_dir):
         try:
-            items = os.listdir(self._data_dir)
-            dicomdir_found = any(item == 'DICOMDIR' and os.path.isfile(os.path.join(self._data_dir, item)) for item in items)
-            folder_list = [item for item in items if os.path.isdir(os.path.join(self._data_dir, item)) and item != 'seq_imgs']
+            items = os.listdir(_data_dir)
+            dicomdir_found = any(item == 'DICOMDIR' and os.path.isfile(os.path.join(_data_dir, item)) for item in items)
+            folder_list = [item for item in items if os.path.isdir(os.path.join(_data_dir, item)) and item != 'seq_imgs']
             if dicomdir_found:
                 return folder_list
             else:
@@ -147,46 +163,6 @@ class DicomToImage(FilesBasic):
         except Exception as e:
             self.send_message(f"Error checking DICOMDIR: {e}")
             return None
-
-    ##==============找到DICOM序列并处理(调用dcmseq_to_img)==============##
-    def __seqdir_handler(self, seq_dir):
-        seq_path = os.path.join(self._data_dir, seq_dir)
-        items = [f for f in os.listdir(seq_path) if not f.startswith('.')]
-        # 结果列表
-        seqs_list = []
-        for item in items:
-            item_path = os.path.join(seq_path, item)
-            # 检查是否是文件且不是文件夹
-            if os.path.isfile(item_path):
-                # 分离文件名和后缀
-                name, ext = os.path.splitext(item)
-                # 如果文件没有后缀或后缀为 .dcm, 则加入列表
-                if ext == '' or ext.lower() == '.dcm':
-                    seqs_list.append(item)
-        # 如果列表不为空, 打印 "ok"
-        if seqs_list:
-            self.send_message(f"检测到DICOM文件夹: {seq_path}, 正在处理")
-
-            for seq in seqs_list:
-                self.dcmseq_to_img(seq_dir, seq)
-
-            # # 并行有很多问题，暂时停用
-            # from multiprocessing import Pool
-            # cores = max(1, os.cpu_count()-1)
-            # with Pool(processes=cores) as pool:
-            #     # 使用 functools.partial 来固定一个参数
-            #     partial_process_task = partial(self.dcmseq_to_img, seq_dir)
-            #     # 设置一个超时时间（例如每个任务5分钟），并捕获超时异常
-            #     try:
-            #         # 使用 map 函数并行处理任务, 传递任务参数
-            #         pool.map(partial_process_task, seqs_list)
-            #     except Exception:
-            #         self.send_message(f"处理失败：{seq_path}")
-            #     finally:
-            #         pool.close()
-            #         pool.join()
-        else:
-            self.send_message(f"{seq_path}文件夹内没有dicom文件")
 
 ##=====================main(单独执行时使用)=====================
 def main():

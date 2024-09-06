@@ -160,7 +160,7 @@ class FileWindow(QWidget):
             print(f"From FileWindow:\n\tError: 未选择目录")
             return  # 退出函数，避免后续错误
         
-        self.__work_folder_items = os.listdir(self.__work_folder)
+        self.__work_folder_items = [f for f in os.listdir(self.__work_folder) if not f.startswith('.')]
         
         # 构建显示的字符串内容
         content = "当前目录内文件为:\n\n"
