@@ -20,20 +20,20 @@ class SplitColors(FilesBasic):
                   colors = None, out_dir_suffix='split-'):
         super().__init__()
         
-        # 定义可能的色彩通道, 顺序不能变, 跟pillow处理有关
+        # 定义可能的色彩通道, RGB顺序不能变, 跟pillow处理有关
         self.__default_colors = ['R', 'G', 'B']
 
         # 设置分离的色彩，如果 colors 不为 None 且合法则使用，否则使用默认的 RGB
         if colors is None:
-            self.colors = self.__default_colors
+            self.__colors = self.__default_colors
         else:
             # 检查传入的 colors 是否有效
             invalid_colors = [c for c in colors if c not in self.__default_colors]
             if invalid_colors:
                 self.send_message(f"colors格式错误, 设置成{self.__default_colors}")
-                self.colors = self.__default_colors
+                self.__colors = self.__default_colors
             else:
-                self.colors = colors
+                self.__colors = colors
 
         # 需要处理的图片类型
         self.suffixs = ['.jpg', '.png', '.jpeg'] 
@@ -82,7 +82,7 @@ class SplitColors(FilesBasic):
             # 创建空图像模板,全黑的灰度图像,大小与原图相同
             black = Image.new('L', img.size)
 
-            for color in self.colors:
+            for color in self.__colors:
                 # 获取通道索引
                 color_index = self.__default_colors.index(color)
     
