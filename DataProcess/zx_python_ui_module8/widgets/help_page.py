@@ -1,5 +1,5 @@
-import sys
-# from PySide6.QtGui import *
+import os, sys
+from PySide6.QtGui import QFont
 # # QPixmap, QIcon, QImage
 from PySide6.QtCore import *
 # QFile, QFileInfo, QPoint, QSettings, QSaveFile, Qt, QTimeLine
@@ -13,30 +13,65 @@ class HelpWindow(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.init_help_window()
-
-    ##=====创建帮助窗口======
-    def init_help_window(self):
-
-        layout1 = QVBoxLayout()
-        GroupBox1 = QGroupBox("使用说明")
-        self.userBut = QPushButton("使用文档")
-        layout1.addWidget(self.userBut)
-        userLable = QLabel("该文档说明具体的使用细节\n\n包括前期建模的格式问题等。")
-        layout1.addWidget(userLable)
-        GroupBox1.setLayout(layout1)
         
-        layout2 = QVBoxLayout()
-        GroupBox2 = QGroupBox("开发指导")
-        self.devBut = QPushButton("开发文档")
-        layout2.addWidget(self.devBut)
-        devLable = QLabel("该文档对开发这个软件进行指导\n\n讲述软件的框架和部分实现的细节。")
-        layout2.addWidget(devLable)
-        GroupBox2.setLayout(layout2)
-        
+        # 主布局
         mainLayout = QVBoxLayout(self)
-        mainLayout.addWidget(GroupBox1)
-        mainLayout.addWidget(GroupBox2)
+
+        # 顶部按钮组
+        buttonLayout = QHBoxLayout()
+        self.userBut = QPushButton("User Manual")
+        self.devBut = QPushButton("Develop Manual")
+        buttonLayout.addWidget(self.userBut)
+        buttonLayout.addWidget(self.devBut)
+
+        self.init_doc_browser()
+
+        # 将布局添加到主布局
+        mainLayout.addLayout(buttonLayout)
+        mainLayout.addWidget(self.textBrowser)
+
+        self.setGeometry(100, 100, 400, 600)
+
+    ##=====创建文档查看窗口======
+    def init_doc_browser(self):
+        # 显示文档的文本浏览器，支持 Markdown
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.doc_dir = os.path.join(base_dir, 'configs')
+
+        self.textBrowser = QTextBrowser()
+        self.textBrowser.setOpenExternalLinks(True)
+        self.textBrowser.setMinimumSize(350,500)
+        self.show_user_manual()
+        # 设置字体
+        font = QFont()
+        # font.setFamily("Arial")  # 设置字体名称
+        font.setPointSize(15)    # 设置字体大小
+        self.textBrowser.setFont(font)
+
+
+        # 绑定按钮的点击事件到相应的函数
+        self.userBut.clicked.connect(self.show_user_manual)
+        self.devBut.clicked.connect(self.show_develop_manual)
+
+    def show_user_manual(self):
+        manual_path = os.path.join(self.doc_dir, 'user_manual.md')
+        # 显示使用手册的内容，可以是 Markdown 格式
+        self.display_markdown(manual_path)
+
+    def show_develop_manual(self):
+        manual_path = os.path.join(self.doc_dir, 'develop_manual.md')
+        self.display_markdown(manual_path)
+
+    def display_markdown(self, file_path):
+        # 检查文件是否存在并显示内容
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+                self.textBrowser.setMarkdown(content)
+        except FileNotFoundError:
+            self.textBrowser.setMarkdown(f"Error: File {file_path} not found.")
+        except Exception as e:
+            self.textBrowser.setMarkdown(f"Error reading file {file_path}: {str(e)}")
 
 ##===========================调试用==============================
 if __name__ == '__main__':
