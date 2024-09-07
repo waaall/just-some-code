@@ -16,24 +16,10 @@ from modules.files_basic import FilesBasic
 ##=======                分离色彩通道              =========
 ##=========================================================
 class SplitColors(FilesBasic):
-    def __init__(self, log_folder_name='split_colors_log',frame_dpi=800,
-                  colors = None, out_dir_suffix='split-'):
+    def __init__(self, log_folder_name='split_colors_log', frame_dpi=200,
+                  colors = None, out_dir_suffix = 'split-'):
         super().__init__()
-        
-        # 定义可能的色彩通道, RGB顺序不能变, 跟pillow处理有关
-        self.__default_colors = ['R', 'G', 'B']
-
-        # 设置分离的色彩，如果 colors 不为 None 且合法则使用，否则使用默认的 RGB
-        if colors is None:
-            self.__colors = self.__default_colors
-        else:
-            # 检查传入的 colors 是否有效
-            invalid_colors = [c for c in colors if c not in self.__default_colors]
-            if invalid_colors:
-                self.send_message(f"colors格式错误, 设置成{self.__default_colors}")
-                self.__colors = self.__default_colors
-            else:
-                self.__colors = colors
+        self.init_colors(colors)
 
         # 需要处理的图片类型
         self.suffixs = ['.jpg', '.png', '.jpeg'] 
@@ -42,24 +28,38 @@ class SplitColors(FilesBasic):
         self.log_folder_name = log_folder_name
         self.out_dir_suffix = out_dir_suffix
 
-        # 设置导出图片dpi & 导出图片的前缀后缀等
-        self.frame_dpi = frame_dpi
-        # 之后会根据函数确定
-        self.__img_names = None
+        # 设置导出图片dpi
+        self.frame_dpi = (frame_dpi, frame_dpi)
 
+    def init_colors(self, colors):
+        # 定义可能的色彩通道, RGB顺序不能变, 跟pillow处理有关
+        self.__default_colors = ['R', 'G', 'B']
+
+        # 设置分离的色彩，如果 colors 不为 None 且合法则使用，否则使用默认的 RGB
+        if colors is None:
+            self.colors = self.__default_colors
+        else:
+            # 检查传入的 colors 是否有效
+            invalid_colors = [c for c in colors if c not in self.__default_colors]
+            if invalid_colors:
+                self.send_message(f"Warning: can not init colors, setting to {self.__default_colors}")
+                self.colors = self.__default_colors
+            else:
+                self.colors = colors
+    
     ##=======================批量处理图片=======================##
     def _data_dir_handler(self, _data_dir):
         # 检查_data_dir,为空则终止,否则创建输出文件夹,继续执行
-        self.__img_names = self._get_filenames_by_suffix(_data_dir)
-        if not self.__img_names:
-            self.send_message(f"{_data_dir}文件夹内没有图片,程序终止")
+        img_names = self._get_filenames_by_suffix(_data_dir)
+        if not img_names:
+            self.send_message(f"Error: No images in {_data_dir}")
             return
         os.makedirs(self.out_dir_suffix + _data_dir, exist_ok=True)
         
         # 多线程处理每一张图片
-        max_works = min(self.max_threads, os.cpu_count(), len(self.__img_names))
+        max_works = min(self.max_threads, os.cpu_count(), len(img_names))
         with ThreadPoolExecutor(max_workers=max_works) as executor:
-            for img_name in self.__img_names:
+            for img_name in img_names:
                 executor.submit(self.image_handler, _data_dir, img_name)
 
     ##=======================处理单张图片=======================##
@@ -71,18 +71,18 @@ class SplitColors(FilesBasic):
             # 分离出红、绿、蓝通道;img_clrs 是一个包含 (R, G, B) 的元组
             try:
                 if img.mode != 'RGB':
-                    self.send_message(f"{img_name}不是RGB格式,尝试转换...")
+                    self.send_message(f"Format Warning: try to convert to RGB for「{img_name}-{img.mode}」")
                     img = img.convert('RGB')
     
                 img_clrs = img.split()
             except Exception as e:
-                self.send_message(f"{img_name}色彩分离失败,错误详情:{str(e)}")
+                self.send_message(f"Error: failed to convert to RGB for {img_name}:{str(e)}")
                 return
 
             # 创建空图像模板,全黑的灰度图像,大小与原图相同
             black = Image.new('L', img.size)
 
-            for color in self.__colors:
+            for color in self.colors:
                 # 获取通道索引
                 color_index = self.__default_colors.index(color)
     
@@ -91,10 +91,10 @@ class SplitColors(FilesBasic):
     
                 # 合并通道并保存
                 out_img = Image.merge('RGB', tuple(channels))
-                path = os.path.join(self.out_dir_suffix + _data_dir, f"{color}_{img_name}")
-                out_img.save(path)
+                path = os.path.join(self.out_dir_suffix + _data_dir, f"{color}-{img_name}")
+                out_img.save(path, dpi = self.frame_dpi)
             
-            self.send_message(f"{img_path}分离色彩,保存到{self.out_dir_suffix + _data_dir}")
+            self.send_message(f"Done split {self.colors} for{img_path}")
 
 ##=====================main(单独执行时使用)=====================
 def main():

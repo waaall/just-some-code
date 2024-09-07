@@ -59,7 +59,7 @@ class DicomToImage(FilesBasic):
         # 检查_data_dir,为空则终止,否则创建输出文件夹,继续执行
         seq_dirs = self.__check_dicomdir(_data_dir)
         if not seq_dirs:
-            self.send_message(f"文件夹「{_data_dir}」为空,请检查目录结构")
+            self.send_message(f"Error: empty dicomdir「{_data_dir}」skipped")
             return
         os.makedirs(self.out_dir_suffix + _data_dir, exist_ok=True)
 
@@ -69,7 +69,7 @@ class DicomToImage(FilesBasic):
             for seq_dir in seq_dirs:
                 seqs_list = self._get_filenames_by_suffix(os.path.join(_data_dir, seq_dir))
                 if not seqs_list:
-                    self.send_message(f"{seq_dir}文件夹内没有dicom文件,已跳过")
+                    self.send_message(f"Warning: empty seq dir「{seq_dir}」skipped")
                     continue
                 for seq in seqs_list:
                     executor.submit(self.dcmseq_to_img, _data_dir, seq_dir, seq)
@@ -84,8 +84,8 @@ class DicomToImage(FilesBasic):
             # self.send_message(f"检测到DICOM文件: {seq_path}, 正在处理")
         except Exception:
             # 如果读取失败, 不抛出异常, 直接返回 0
-            self.send_message(f"ERROR!\t{seq_path}读取失败")
-            return -1
+            self.send_message(f"Error: failed to read the dicom file「{seq_path}」")
+            return
         # 检查是否有多帧图像
         num_frames = ds.get('NumberOfFrames', 1)
 
@@ -147,7 +147,7 @@ class DicomToImage(FilesBasic):
             self.send_message(f'Video OUTPUT SUCCESS: {seq_path}')
         else:
             self.send_message(f'Image OUTPUT SUCCESS: {seq_path}')
-        return 1
+        return
 
     ##=====================找到DICOM序列文件夹列表======================##
     def __check_dicomdir(self, _data_dir):

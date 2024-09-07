@@ -30,7 +30,7 @@
         "DicomToImage": {
             "log_folder_name": "dicom_handle_log",
             "fps": 10,
-            "frame_dpi": 800,
+            "frame_dpi": 200,
             "out_dir_suffix": "Img-"
         },
         "MergeColors": {

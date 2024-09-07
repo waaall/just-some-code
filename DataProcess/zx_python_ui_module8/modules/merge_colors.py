@@ -21,138 +21,163 @@ from modules.files_basic import FilesBasic
 ##=======              合成图片色彩通道             =========
 ##=========================================================
 class MergeColors(FilesBasic):
-    def __init__(self,log_folder_name='merge_colors_log',frame_dpi=800,
-                  colors = None, out_dir_suffix = 'merge-'):
+    def __init__(self, log_folder_name = 'merge_colors_log', frame_dpi=200,
+                  colors = None, strict_match = True, out_dir_suffix = 'merge-'):
         super().__init__()
-
-        # 设置分离的颜色,如果colors(统一大写)不为None且合法则使用,否则使用默认的RGB
-        default_colors = ['R', 'G', 'B']
-        if colors is None:
-            self.__colors = default_colors
-        else:
-            # 检查传入的 colors 是否有效
-            invalid_colors = [c for c in colors if c not in default_colors]
-            if invalid_colors:
-                self.send_message(
-                    f"From MergeColors:\n\tcolors格式错误, 设置成{default_colors}\n"
-                )
-                self.__colors = sorted(default_colors)
-            else:
-                self.__colors = sorted(colors)
+        # 是否需要严格匹配, 如果否则找到对应文件pair就处理
+        self.strict_match = strict_match
+        self.init_colors(colors)
         
         # 需要处理的图片类型
         self.suffixs = ['.jpg', '.png', '.jpeg']
-        
-        # 设置导出图片dpi & 导出图片的前缀后缀等
-        self.frame_dpi = frame_dpi
+
+        # 设置导出图片dpi
+        self.frame_dpi = (frame_dpi, frame_dpi)
         
         # 设置导出图片文件夹的前缀名 & log文件夹名字
         self.log_folder_name = log_folder_name
         self.out_dir_suffix = out_dir_suffix
-        
-        # 之后会根据函数确定
-        self.img_names = None
 
+    # 设置分离的颜色,如果colors(统一大写)不为None且合法则使用,否则使用默认的RGB
+    def init_colors(self, colors):
+        # 定义可能的色彩通道, RGB顺序不能变, 跟pillow处理有关
+        self.__default_colors = ['R', 'G', 'B']
+        if self.strict_match or colors is None:
+            self.colors = sorted(self.__default_colors)
+            return
+        # 检查传入的 colors 是否有效
+        invalid_colors = [c for c in colors if c not in self.__default_colors]
+        if invalid_colors:
+            self.send_message(f"Warning: can not init colors, setting to {self.__default_colors}\n")
+            self.colors = sorted(self.__default_colors)
+        else:
+            self.colors = sorted(colors)
+    
     ##=======================批量处理成对图片=======================##
     def _data_dir_handler(self, _data_dir):
         # 检查_data_dir,为空则终止,否则创建输出文件夹,继续执行
-        self.img_names = self._get_filenames_by_suffix(_data_dir)
-        pairs = self.pair_images()
+        img_names = self._get_filenames_by_suffix(_data_dir)
+        pairs = self.pair_images(img_names)
         if not pairs:
-            self.send_message(f"{_data_dir}文件夹内没有匹配的图片,程序终止")
+            self.send_message(f"Error: No images in {_data_dir}")
             return
         os.makedirs(self.out_dir_suffix + _data_dir, exist_ok=True)
-            
-        for images_pair in pairs:
-            # 分割RGB前缀, 获取文件名
-            output_name = images_pair[0].split('_', 1)[1]
-            print(self.out_dir_suffix)
-            print(_data_dir)
-            output_path = os.path.join(self.out_dir_suffix + _data_dir, output_name)
-            print(output_path)
-            try:
-                self.image_merge(_data_dir, images_pair, output_path)
-                self.send_message(f"Saved merged image: {output_name}")
-            except Exception as e:
-                self.send_message(f"Error saving merged image: {str(e)}")
-        
+
+        # 多线程处理每一对图片
+        max_works = min(self.max_threads, os.cpu_count(), len(pairs))
+        with ThreadPoolExecutor(max_workers=max_works) as executor:
+            for images_pair in pairs:
+                executor.submit(self.image_merge, _data_dir, images_pair)
+                
     ##========================配对图片文件========================##
-    def pair_images(self):
-        if self.img_names is None:
+    def pair_images(self, img_names):
+        if img_names is None:
             return []
         
         # 对文件名排序, 这样配对能将O(n^2)优化到O(nlogn)
-        self.img_names.sort()
-    
+        img_names.sort()
         pairs = []
         i = 0
-        while i < len(self.img_names):
-            image_name = self.img_names[i]
-            parts = image_name.split('_', 1)
-            
-            # 检查文件是否符合命名规则
-            if len(parts) < 2 or parts[0] not in self.__colors:
+        while i < len(img_names):
+            image_name = img_names[i]
+            parts = image_name.split('-', 1)
+            current_color = parts[0]
+
+            # 如果是严格检查, 跳过不是self.colors[0]的文件
+            if self.strict_match and current_color != self.colors[0]:
+                print(f"From MergeColors:\n\tStrict match Mode: skip {image_name}")
                 i += 1
-                self.send_message(f"{image_name}不符合明明规则, 已跳过")
                 continue
 
-            current_color = parts[0]
+            # 检查文件是否符合命名规则
+            if len(parts) < 2 or current_color not in self.__default_colors:
+                i += 1
+                self.send_message(f"Warning: not conform to the naming convention「{image_name}」skipped ")
+                continue
+
             base_name, _, _ = parts[1].rpartition('.')
-            pair = [image_name]
-    
+            pair = [image_name]        
+
             # 子循环(在排序后的位置上寻找配对的图像)
-            expected_colors = [c for c in self.__colors if c != current_color]
+            expected_colors = [c for c in self.__default_colors if c != current_color]
             j = i + 1
-            while j < len(self.img_names) and expected_colors:
-                co_parts = self.img_names[j].split('_', 1)
+            while j < len(img_names) and expected_colors:
+                co_parts = img_names[j].split('-', 1)
                 co_base_name, _, _ = co_parts[1].rpartition('.')
                 # 检查下一个文件的前缀是否符合期望的颜色，并匹配 base_name
                 if len(co_parts) >= 2 and co_parts[0] in expected_colors and co_base_name == base_name:
-                    pair.append(self.img_names[j])
+                    pair.append(img_names[j])
                     expected_colors.remove(co_parts[0])  # 匹配到一个颜色后, 从期望集合中移除
                 j += 1
             
-            # 检查配对结果,并根据情况输出提示信息
+            # 检查配对结果，并根据情况输出提示信息
             if len(pair) == 1:
                 # 没有找到任何配对文件
-                self.send_message(f"Unmatched: {image_name} 没有找到配对文件")
-            elif len(pair) < len(self.__colors):
-                # 找到了部分配对文件,输出提示并加入 pairs
-                self.send_message(f"Partial Match: {image_name} 未找到以下颜色的文件:{expected_colors}")
-                pairs.append(pair)
+                self.send_message(f"Warning: Unmatched with {base_name}")
             else:
-                # 找到了所有需要的颜色文件
                 pairs.append(pair)
             
-            # 跳过已处理的文件
-            i = j
+            i += 1
         return pairs
     
     ##======================合并图像并保存=======================##
-    def image_merge(self,_data_dir, images_pair, output_path):
-        channels = [] # 初始化通道列表
+    def image_merge(self, _data_dir, images_pair):
+        output_name = images_pair[0].split('-', 1)[1]
+        output_path = os.path.join(self.out_dir_suffix + _data_dir, output_name)
+        
+        channel_map = {}        # 初始化通道字典,按RGB分别存储
+        expected_size = None    # 用于存储期望的图像尺寸
 
-        # 因为self.__colors和images_pair都是排序的,所以能对应上
-        for color, img_name in zip(self.__colors, images_pair):
+        # 遍历 images_pair 并根据 strict_match 判断逻辑
+        for index, img_name in enumerate(images_pair):
             path = os.path.join(_data_dir, img_name)
-            img = Image.open(path).convert('RGB') # 打开图像并转换为RGB
-            # 根据颜色选择通道
-            if color == 'R':
-                channels.append(np.array(img)[:, :, 0])
-            elif color == 'G':
-                channels.append(np.array(img)[:, :, 1])
-            elif color == 'B':
-                channels.append(np.array(img)[:, :, 2])
+            try:
+                img = Image.open(path).convert('RGB')  # 尝试打开图像并转换为 RGB
+            except Exception as e:
+                self.send_message(f"Error: failed opening image {img_name}: {str(e)}")
+                return
+            # 检查图像是否成功打开并转换
+            if img.mode != 'RGB':
+                try:
+                    img = img.convert('RGB')
+                except Exception as e:
+                    self.send_message(f"Error:{img_name} failed converting to RGB Image")
 
-        # 如果某个通道不存在，则填充为零
-        while len(channels) < 3:
-            channels.append(np.zeros_like(channels[0]))
+            # 获取当前图片的"颜色"
+            current_color = img_name.split('-', 1)[0]
+
+            # 根据是否为严格匹配模式判断
+            if self.strict_match and current_color != self.colors[index]:
+                self.send_message(f"Strict match failed: {img_name} # {self.colors}")
+                return
+            
+            # 检查图像的尺寸是否统一
+            if expected_size is None:
+                expected_size = img.size  # 初始化期望尺寸
+            elif img.size != expected_size:
+                self.send_message(f"Error: Not the same size:「{images_pair}」")
+                return
+            
+            # 根据文件名前缀判断颜色并存储通道数据
+            if current_color in self.__default_colors:
+                channel_map[current_color] = np.array(img)[:, :, 'RGB'.index(current_color)]
+
+        # expected_size是图像的(width, height),需要转为 (height, width) 来与 NumPy 的图像数组维度一致
+        reference_shape = (expected_size[1], expected_size[0])
+            
+        # 按 RGB 顺序填充通道，如果缺失则填充为零
+        channels = [channel_map.get(c, np.zeros(reference_shape, dtype=np.uint8)) 
+                                    for c in self.__default_colors]
 
         # 按 RGB 顺序合并通道
-        merged_image = np.stack(channels[:3], axis=-1)
+        merged_image = np.stack(channels, axis=-1)
         merged_image_f = Image.fromarray(merged_image.astype('uint8'))
-        # 保存合并后的图像
-        merged_image_f.save(output_path)
+        
+        try: # 保存合并后的图像
+            merged_image_f.save(output_path, dpi = self.frame_dpi)
+            self.send_message(f"Saved merged image: {output_name}")
+        except Exception as e:
+            self.send_message(f"Error saving merged image: {str(e)}")
 
 
 ##=====================main(单独执行时使用)=====================
