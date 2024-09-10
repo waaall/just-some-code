@@ -41,8 +41,11 @@ if os.name == 'nt':  # 仅在 Windows 系统上执行
 ##=======               DICOM导出图片              =========
 ##=========================================================
 class DicomToImage(FilesBasic):
-    def __init__(self, log_folder_name = 'dicom_handle_log',
-                 fps=10, frame_dpi=800, out_dir_suffix='Img-'):
+    def __init__(self, 
+                 log_folder_name :str = 'dicom_handle_log',
+                 fps :int = 10, 
+                 frame_dpi :int = 800, 
+                 out_dir_suffix :str = 'Img-'):
         super().__init__()
 
         # 重写父类suffixs,为dicom文件可能的后缀

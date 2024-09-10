@@ -10,7 +10,11 @@ from PySide6.QtCore import QObject, Signal
 ##=========================================================
 class FilesBasic(QObject):
     result_signal = Signal(str)
-    def __init__(self,log_folder_name='handle_log',out_dir_suffix='Out-', max_threads = 3):
+    def __init__(self,
+                 log_folder_name :str = 'handle_log',
+                 out_dir_suffix :str = 'Out-', 
+                 max_threads :int = 3):
+        
         super().__init__()
         # 设置消息队列(初始化顺序不是随意的)
         self.result_queue = queue.Queue()

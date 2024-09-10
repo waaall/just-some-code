@@ -16,8 +16,12 @@ from modules.files_basic import FilesBasic
 ##=======                分离色彩通道              =========
 ##=========================================================
 class SplitColors(FilesBasic):
-    def __init__(self, log_folder_name='split_colors_log', frame_dpi=200,
-                  colors = None, out_dir_suffix = 'split-'):
+    def __init__(self, 
+                 log_folder_name :str = 'split_colors_log', 
+                 frame_dpi :int = 200,
+                 colors = None, 
+                 out_dir_suffix :str = 'split-'):
+        
         super().__init__()
         self.init_colors(colors)
 

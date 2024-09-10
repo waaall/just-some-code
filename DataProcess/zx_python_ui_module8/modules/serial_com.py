@@ -7,7 +7,12 @@ from PySide6.QtCore import QObject, Signal, QTimer
 
 class SerialReader(QObject):
     data_signal = Signal(str)
-    def __init__(self, port='COM3', baudrate=9600, interval=0.5, callback=None):
+    def __init__(self, 
+                 port :str = 'COM3', 
+                 baudrate :int = 9600, 
+                 interval :float = 0.5, 
+                 callback = None):
+        
         super().__init__()
         self.port = port
         self.interval = interval

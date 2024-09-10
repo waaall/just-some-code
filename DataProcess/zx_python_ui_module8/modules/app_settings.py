@@ -69,12 +69,12 @@ class AppSettings(QObject):
                 setattr(self, name, value)
     
     # 根据 category_name 动态获取对应的 Settingmap
-    def get_setting_map(self, category_name):
+    def get_setting_map(self, category_name:str):
         setting_map_name = f"{category_name}_Settingmap"
         return getattr(self, setting_map_name, {})
 
     # 从 options_path 中提取 path 和 options
-    def extract_options_path(self, options_path):
+    def extract_options_path(self, options_path:str):
         if isinstance(options_path[0], list):
             options = options_path[0]
             path = options_path[1:]
@@ -93,7 +93,7 @@ class AppSettings(QObject):
         return d
 
     # 保存设置到文件
-    def save_settings(self, name, value):
+    def save_settings(self, name:str, value):
         # 遍历几个setting_map找到name,解析出path就break
         for category in self.__main_categories:
             setting_map = self.get_setting_map(category)

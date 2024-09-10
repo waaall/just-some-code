@@ -21,8 +21,12 @@ from modules.files_basic import FilesBasic
 ##=======              合成图片色彩通道             =========
 ##=========================================================
 class MergeColors(FilesBasic):
-    def __init__(self, log_folder_name = 'merge_colors_log', frame_dpi=200,
-                  colors = None, strict_match = True, out_dir_suffix = 'merge-'):
+    def __init__(self, 
+                 log_folder_name :str = 'merge_colors_log',
+                 frame_dpi :int = 200,
+                 colors = None, 
+                 strict_match :bool = True, 
+                 out_dir_suffix :str = 'merge-'):
         super().__init__()
         # 是否需要严格匹配, 如果否则找到对应文件pair就处理
         self.strict_match = strict_match

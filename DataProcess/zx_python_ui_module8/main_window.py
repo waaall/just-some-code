@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         self.add_stack_page(self.FileWindow, group_name = page_groups_names[2])
 
     ##====================右侧stack中添加一页=====================
-    def add_stack_page(self, page_instance, group_name='file_opt'):
+    def add_stack_page(self, page_instance, group_name:str='file_opt'):
         """
         :param page_instance: 页面的类示例, 当然, 需要import你的页面类所在的文件
         :param group_name: dock_page的组名
