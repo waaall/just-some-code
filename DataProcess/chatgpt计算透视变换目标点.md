@@ -3827,3 +3827,79 @@ twist_processor = TwistImgs(
 3. **实现两种变换方式**：既可以通过相对四角坐标变换图像，也可以通过视角角度计算变换后的四角坐标。
 
 如果在实施过程中仍有问题或需要进一步的帮助，请随时提问！
+
+
+# 只谈坐标变换
+
+我这段代码到底哪里出了问题
+```python 
+    ##=============根据视角角度计算变换后图片四角坐标==============
+    def __cal_angle_coordinate(self):
+        # 定义图片四个角在3D空间中的坐标（假设图片位于Z=0平面）
+        # src_pts_3d = np.hstack((src_pts, z_values))
+        src_pts_3d = np.float32([
+            [0, 0, 0],                      # 左上
+            [self.width, 0, 0],             # 右上
+            [self.width, self.height, 0],   # 右下
+            [0, self.height, 0]             # 左下
+        ])
+
+        # 视角角度转换为弧度
+        theta_vertical = np.deg2rad(self.__vertical_angle)
+        theta_horizontal = np.deg2rad(self.__horizontal_angle)
+
+        # 绕x轴旋转的旋转矩阵 (垂直角度, 抬头的角度)
+        Rx = np.array([
+            [1, 0, 0],
+            [0, np.cos(theta_vertical), -np.sin(theta_vertical)],
+            [0, np.sin(theta_vertical),  np.cos(theta_vertical)]
+        ])
+        # 绕y轴旋转的旋转矩阵 (水平角度, 摇头的角度)
+        Ry = np.array([
+            [ np.cos(theta_horizontal), 0, np.sin(theta_horizontal)],
+            [0, 1, 0],
+            [-np.sin(theta_horizontal), 0, np.cos(theta_horizontal)]
+        ])
+        # 总的旋转矩阵: 先水平旋转, 再垂直旋转
+        R = Ry @ Rx
+
+        # 相机/viewer的绝对位置计算(映射到像素坐标), viewer_pos = [x, y]
+        normalized_x = self.viewer_pos[0] / 9 
+        normalized_y = self.viewer_pos[1] / 9 
+        camera_x = normalized_x * self.width 
+        camera_y = self.height - (normalized_y * self.height)
+
+        # 1.调整坐标系, 将 y 轴反转, 使其与笛卡尔坐标系一致
+        src_pts_3d[:, 1] = -src_pts_3d[:, 1]
+        # viewer/相机的坐标(注意这里对 camera_y 也反转)
+        translation_to_origin = np.array([camera_x, -camera_y, 0])
+
+        # 2.将旋转轴平移到原点
+        translated_pts = src_pts_3d - translation_to_origin
+
+        # 3.应用旋转矩阵
+        rotated_pts = (R @ translated_pts.T).T
+
+        # 4.将旋转后的点平移回原位置
+        rotated_pts += translation_to_origin
+
+        # 5.恢复到原坐标系, 将 y 轴再反转回来
+        rotated_pts[:, 1] = -rotated_pts[:, 1]
+        points_3d = np.abs(rotated_pts.astype(np.float32)) # 转换为正数(主要是-0)
+
+        # 6.焦距, 透视投影
+        focal_length = 3000
+        
+        # 7. 调整 z 坐标，以考虑相机的位置
+        points_3d[:, 2] += focal_length
+        
+        projected = []
+        for point in points_3d:
+            if point[2] == 0:
+                point[2] = 1e-6  # 防止除以零
+            x = (focal_length * point[0]) / point[2]
+            y = (focal_length * point[1]) / point[2]
+            projected.append([x, y])
+        
+        return np.float32(projected)
+```

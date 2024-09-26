@@ -29,6 +29,7 @@ class zxPackageManager:
             'pyqtgraph',
             'ipython',
             'pyperclip',
+            'pytest',
         ]
 
     def install_packages(self):
