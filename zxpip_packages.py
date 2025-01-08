@@ -31,6 +31,7 @@ class zxPackageManager:
             'pyperclip',
             'pytest',
             'pymodbus',
+            'jupyter',
         ]
 
     def install_packages(self):
