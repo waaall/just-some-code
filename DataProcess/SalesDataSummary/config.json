@@ -1,19 +1,20 @@
 {
-    "input_file": "23-24明细表备份.xlsx",
-    "output_file_name": "25年统计备份.xlsx",
+    "input_file": "23-24明细表.xlsx",
+    "index_file": "销售花名册.xlsx",
+    "output_file_name": "25年统计表.xlsx",
     "sheet_name": "考核情况",
-    "months": ["1月", "2月"],
-    "group_columns": ["省份", "销售代表", "大类"],
+    "filter_cols": {"月份": ["1月", "2月"]},
+    "role_groups": ["销售主管", "销售代表"],
+    "group_columns": ["大类"],
     "agg_columns": {
         "2023金额": "sum",
-        "2024金额": "sum"
-    },
-    "output_columns_map": {
-        "省份": "省份",
-        "销售代表": "姓名",
+        "2024金额": "sum"},
+    "output_cols_map": {
+        "部门": "部门",
+        "区域": "区域",
+        "姓名": "姓名",
+        "职务/岗位": "职务/岗位",
         "大类": "大类",
         "2023金额": "2023年1-2月累计金额",
-        "2024金额": "2024年1-2月累计金额"
-    },
-    "depart_name": "销售部"
+        "2024金额": "2024年1-2月累计金额"}
 }
