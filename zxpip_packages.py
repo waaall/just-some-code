@@ -32,6 +32,8 @@ class zxPackageManager:
             'pytest',
             'pymodbus',
             'jupyter',
+            'yt-dlp',
+            'pdf2zh',
         ]
 
     def install_packages(self):
