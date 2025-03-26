@@ -34,6 +34,10 @@ class zxPackageManager:
             'jupyter',
             'yt-dlp',
             'pdf2zh',
+            'PyMuPDF',
+            'markdown',
+            'beautifulsoup4',
+            'neurokit2',
         ]
 
     def install_packages(self):
