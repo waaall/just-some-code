@@ -100,7 +100,7 @@ class VisitDataSummary:
         df_filtered[self.filter_col] = pd.to_datetime(df_filtered[self.filter_col])
 
         # 将日期转换为年月格式 (YYYY.M)
-        df_filtered[self.filter_col] = df_filtered[self.filter_col].dt.strftime('%Y.%-m')
+        df_filtered[self.filter_col] = df_filtered[self.filter_col].dt.strftime('%Y.%m')
 
         # 按分组统计访问次数
         df_summary = (
