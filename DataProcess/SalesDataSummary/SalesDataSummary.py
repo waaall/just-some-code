@@ -54,7 +54,7 @@ class SalesDataSummary:
                 "2024金额": "2024年1-2月累计金额"}
         }
         # 尝试从配置文件加载
-        config_file = "config.json"
+        config_file = "sale_config.json"
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)

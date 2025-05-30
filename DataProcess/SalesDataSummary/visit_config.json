@@ -1,0 +1,6 @@
+{
+    "input_files": ["小明.xlsx", "小红.xlsx"],
+    "group_columns": ["医院", "领用科室"],
+    "filter_col": "反馈时间",
+    "output_cols_map": ["医院", "领用科室", "反馈时间", "访问次数"]
+}
