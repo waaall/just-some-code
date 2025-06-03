@@ -1,17 +1,20 @@
 """
     ===========================README============================
     create date:    20250530
-    change date:    20250530
+    change date:    20250603
     creator:        zhengxu
 
     function:       1. 统计访问次数表
 
-    version:        beta0.6
+    version:        beta0.5
     updates:
 
-    details:        1. input_files是数据表列表, 如果为空则自动查找当前目录下的所有xlsx文件
-                    2. group_columns是数据表合并后的保留的列
-
+        details:    1. group_columns是数据表合并后的保留的列
+                    2. filter_col是数据表合并后的过滤列
+                    3. output_suffix是输出文件的名称后缀
+                    4. 如果input_files为空, 则自动查找当前目录下的所有xlsx文件
+                       如果input_files不为空, 则使用input_files中的文件
+                       如果input_files中的文件不存在, 则报错
 """
 # =========================用到的库==========================
 import os
@@ -42,7 +45,8 @@ class VisitDataSummary:
         # 配置参数
         self.group_columns = config.get('group_columns', [])
         self.filter_col = config.get('filter_col')
-        
+        self.output_suffix = config.get('output_suffix', '访问次数统计')
+
         # 设置输入文件列表
         input_files = config.get('input_files', [])
         if input_files:
@@ -55,7 +59,7 @@ class VisitDataSummary:
         查找当前目录下的所有xlsx文件，排除已生成的访问次数文件
         """
         all_excel_files = glob.glob("*.xlsx")
-        return [f for f in all_excel_files if not f.endswith("_访问次数.xlsx")]
+        return [f for f in all_excel_files if not f.endswith(f"_{self.output_suffix}.xlsx")]
 
     def _check_file(self, file_path: str) -> bool:
         """检查文件是否存在"""
@@ -81,7 +85,7 @@ class VisitDataSummary:
             print(f"Warning: 文件 '{input_file}' 无有效数据, 不生成访问次数统计文件。")
             return False
 
-        output_file = input_file.replace('.xlsx', '_访问次数信息统计.xlsx')
+        output_file = input_file.replace('.xlsx', f'_{self.output_suffix}.xlsx')
         df_summary.to_excel(output_file, index=False)
         print(f"访问次数统计结果已保存到: {output_file}")
         return True
@@ -108,7 +112,7 @@ class VisitDataSummary:
             print(f"Warning: 文件 '{input_file}' 无有效数据, 不生成月度统计文件。")
             return False
 
-        output_file = input_file.replace('.xlsx', '_月度访问次数统计.xlsx')
+        output_file = input_file.replace('.xlsx', f'_{self.output_suffix}.xlsx')
         df_summary.to_excel(output_file, index=False)
         print(f"月度统计结果已保存到: {output_file}")
         return True
@@ -163,7 +167,7 @@ class VisitDataSummary:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             # 创建任务列表
             future_to_file = {
-                executor.submit(self._process_single_file, input_file): input_file 
+                executor.submit(self._process_single_file, input_file): input_file
                 for input_file in self.input_files
             }
 

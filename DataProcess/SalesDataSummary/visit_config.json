@@ -1,5 +1,6 @@
 {
-    "input_files": ["小明.xlsx", "小红.xlsx"],
+    "input_files": [],
+    "output_suffix": "访问次数统计",
     "group_columns": ["医院", "领用科室"],
     "filter_col": "反馈时间"
 }
