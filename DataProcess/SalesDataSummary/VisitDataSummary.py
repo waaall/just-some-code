@@ -6,12 +6,11 @@
 
     function:       1. 统计访问次数表
 
-    version:        beta0.2
+    version:        beta0.6
     updates:
 
     details:        1. input_files是数据表列表, 如果为空则自动查找当前目录下的所有xlsx文件
                     2. group_columns是数据表合并后的保留的列
-                    3. output_cols_map中的前几个列名最好不要改
 
 """
 # =========================用到的库==========================
@@ -43,8 +42,7 @@ class VisitDataSummary:
         # 配置参数
         self.group_columns = config.get('group_columns', [])
         self.filter_col = config.get('filter_col')
-        self.output_cols_map = config.get('output_cols_map', [])
-
+        
         # 设置输入文件列表
         input_files = config.get('input_files', [])
         if input_files:
@@ -66,6 +64,55 @@ class VisitDataSummary:
             return False
         return True
 
+    def _count_by_group(self, df_filtered: pd.DataFrame, input_file: str) -> bool:
+        """
+        按医院和科室分组统计访问次数并保存结果
+        """
+        # 按分组统计访问次数
+        df_summary = (
+            df_filtered
+            .groupby(self.group_columns + [self.filter_col])
+            .size()
+            .reset_index(name='访问次数')
+        )
+
+        # 保存结果
+        if df_summary.empty:
+            print(f"Warning: 文件 '{input_file}' 无有效数据, 不生成访问次数统计文件。")
+            return False
+
+        output_file = input_file.replace('.xlsx', '_访问次数信息统计.xlsx')
+        df_summary.to_excel(output_file, index=False)
+        print(f"访问次数统计结果已保存到: {output_file}")
+        return True
+
+    def _count_by_month(self, df_filtered: pd.DataFrame, input_file: str) -> bool:
+        """
+        按月统计医院数量、科室数量和访问次数并保存结果
+        """
+        # 按月份分组统计
+        monthly_stats = df_filtered.groupby(self.filter_col).agg({
+            self.group_columns[0]: 'nunique',
+            self.group_columns[1]: 'nunique',
+            self.filter_col: 'count'
+        }).rename(columns={
+            self.group_columns[0]: f"{self.group_columns[0]}个数",
+            self.group_columns[1]: f"{self.group_columns[1]}个数",
+            self.filter_col: '拜访次数'
+        })
+
+        df_summary = monthly_stats.reset_index()
+
+        # 保存结果
+        if df_summary.empty:
+            print(f"Warning: 文件 '{input_file}' 无有效数据, 不生成月度统计文件。")
+            return False
+
+        output_file = input_file.replace('.xlsx', '_月度访问次数统计.xlsx')
+        df_summary.to_excel(output_file, index=False)
+        print(f"月度统计结果已保存到: {output_file}")
+        return True
+
     def _process_single_file(self, input_file: str) -> bool:
         """
         处理单个Excel文件并保存结果
@@ -82,10 +129,6 @@ class VisitDataSummary:
             print(f"Error: 无法读取数据表 '{input_file}'\n{e}")
             return False
 
-        # 清理空行、空列
-        df_input.dropna(how='all', inplace=True)
-        df_input.dropna(how='all', axis=1, inplace=True)
-
         # 检查必要的列是否存在
         required_cols = self.group_columns + [self.filter_col]
         missing_cols = [col for col in required_cols if col not in df_input.columns]
@@ -93,32 +136,22 @@ class VisitDataSummary:
             print(f"Error: 数据表 '{input_file}' 缺少必要的列: {missing_cols}")
             return False
 
-        # 复制数据框
+        # 清理空行、空列
         df_filtered = df_input.copy()
+        df_filtered.dropna(how='all', inplace=True)
+        df_filtered.dropna(how='all', axis=1, inplace=True)
 
         # 将反馈时间转换为日期格式
         df_filtered[self.filter_col] = pd.to_datetime(df_filtered[self.filter_col])
 
-        # 将日期转换为年月格式 (YYYY.M)
+        # 将日期转换为年月格式 (YYYY.MM)
         df_filtered[self.filter_col] = df_filtered[self.filter_col].dt.strftime('%Y.%m')
 
-        # 按分组统计访问次数
-        df_summary = (
-            df_filtered
-            .groupby(self.group_columns + [self.filter_col])
-            .size()
-            .reset_index(name='访问次数')
-        )
+        # 生成统计结果
+        # success = self._count_by_group(df_filtered, input_file)
+        success = self._count_by_month(df_filtered, input_file)
 
-        # 保存结果
-        if df_summary.empty:
-            print(f"Warning: 文件 '{input_file}' 无有效数据, 不生成输出文件。")
-            return False
-
-        output_file = input_file.replace('.xlsx', '_访问次数.xlsx')
-        df_summary.to_excel(output_file, index=False)
-        print(f"汇总结果已保存到: {output_file}")
-        return True
+        return success
 
     def run(self):
         """执行数据处理的完整流程"""
@@ -130,7 +163,7 @@ class VisitDataSummary:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             # 创建任务列表
             future_to_file = {
-                executor.submit(self._process_single_file, input_file): input_file
+                executor.submit(self._process_single_file, input_file): input_file 
                 for input_file in self.input_files
             }
 
