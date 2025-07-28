@@ -39,6 +39,7 @@ class zxPackageManager:
             'beautifulsoup4',
             'neurokit2',
             'PyWavelets'
+            'ujson',
         ]
 
     def install_packages(self):

@@ -331,6 +331,51 @@ class HisDataParser:
 
                 i_start += 36
 
+            # 读取所有Dx Point点代号和序号 - 继续处理DxPoint
+            print("开始解析DxPoint...")
+            for i in range(self.dx_points_num):
+                if i_start + 36 > len(binary_data):
+                    print(f"警告: 读取第{i}个DxPoint时超出文件范围")
+                    break
+
+                # 计算点名偏移量(点名长度不一样)
+                i_offset = 0
+                while (i_start + i_offset < len(binary_data) and
+                       binary_data[i_start + i_offset] != 0x00):
+                    i_offset += 1
+
+                # 读取点代码
+                if i_offset > 0:
+                    point_code_bytes = binary_data[i_start:i_start + i_offset]
+                    point_code = point_code_bytes.decode('ascii', errors='ignore')
+                else:
+                    point_code = f"DXPOINT_{i}"
+
+                # 读取点序号(偏移32, 4字节)
+                if i_start + 36 <= len(binary_data):
+                    point_xh_bytes = binary_data[i_start + 32:i_start + 36]
+                    point_xh = struct.unpack('<I', point_xh_bytes)[0]
+                else:
+                    point_xh = 65535
+
+                # 对应C#代码的错误处理
+                if point_xh == 65535:
+                    error_xh += point_code + "; "
+                    error_xh_num += 1
+                    i_start += 36
+                    continue
+
+                # DxPoint的索引应该从AxPoint总数之后开始计算
+                dx_index = self.ax_points_num + i
+                if dx_index not in xh_to_code:
+                    xh_to_code[dx_index] = point_code
+                    self.m_codeToXh[point_code] = dx_index  # 同时建立反向映射
+
+                if len(xh_to_code) <= 40:  # 显示前40个(包括AxPoint和DxPoint)
+                    print(f"数据点 {dx_index}: {point_code} (序号: {point_xh}) [DxPoint]")
+
+                i_start += 36
+
             if error_xh_num > 0:
                 print(f"发现 {error_xh_num} 个无效序号的数据点")
 
@@ -560,7 +605,8 @@ class HisDataParser:
             # 查找指定数据点
             if point_name not in self.m_codeToXh:
                 print(f"错误: 找不到数据点 '{point_name}'")
-                print(f"可用的数据点(前10个): {list(self.m_codeToXh.keys())[:10]}")
+                # print(f"可用的数据点(前10个): {list(self.m_codeToXh.keys())[:10]}")
+                print(f"可用的数据点: {list(self.m_codeToXh.keys())}")
                 return []
 
             target_xh = self.m_codeToXh[point_name]
