@@ -38,7 +38,7 @@ class zxPackageManager:
             'markdown',
             'beautifulsoup4',
             'neurokit2',
-            'PyWavelets'
+            'PyWavelets',
             'ujson',
         ]
 
