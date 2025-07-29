@@ -1,0 +1,8 @@
+项目,数量,详细信息
+检查时间,1,2025-07-29 10:24:08
+服务器地址,1,192.168.50.30:8123
+数据库总数,16,"INFORMATION_SCHEMA, dananhu, default, ezhou, heat_economy, information_schema, kashi, matou, split_test, system, test, test_udp, wuan, xingtai, zhoushan, zhungeer"
+表总数,36,
+字段总数,145,
+分区总数,168,
+生成的报告文件,5,clickhouse_databases_20250729.csv; clickhouse_tables_20250729.csv; clickhouse_columns_20250729.csv; clickhouse_partitions_20250729.csv; clickhouse_samples_20250729.csv
