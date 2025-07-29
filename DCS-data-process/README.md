@@ -1,6 +1,7 @@
 # README
 
-我并非该项目源代码作者，后通过阅读源码分析原理和技术细节。
+本项目主要是逆向分析HIS和IDX文件，解析其数据；并且分析ClickHouse数据库结构，并将解析完成的HIS文件上传到ClickHouse数据库。其中HIS&IDX文件是电厂DCS传感器数据。
+
 
 # 基本结构
 
@@ -254,14 +255,11 @@ Target host is configured as Windows, but seems to be a different OS. Please rev
 2. 管理标签 → 更改系统区域设置
 3. 勾选 “Beta版：使用Unicode UTF-8提供全球语言支持(U)”
 
-
 ---
 
 python 重写
 
 ---
-
-
 
 # IDX文件结构完整分析报告
 
@@ -424,9 +422,7 @@ DxPoint定义区:
 
 包含了每个数据点的详细信息和索引地址映射关系，可用于进一步的数据处理和分析。
 
-
 # 指定数据导出
-
 
 **功能描述：**
 

@@ -20,16 +20,12 @@ HIS历史数据到ClickHouse数据库导入器
 
 数据库设计:
 ----------
-表名：his_timeseries_data
+表名：points_data（使用现有表结构）
 字段：
-- timestamp: DateTime64(3) - 时间戳（毫秒精度）
 - point_code: String - 数据点代码
-- point_name: String - 数据点名称
-- value: Float64 - 数值
-- quality: UInt8 - 数据质量
-- xh: UInt32 - 数据点序号
-- file_source: String - 源文件名
-- created_at: DateTime - 创建时间
+- point_value: Float64 - 数值
+- date_time: DateTime - 时间戳
+- point_type: Int8 - 数据点类型
 
 使用方法:
 --------
@@ -123,7 +119,7 @@ class HisToClickHouseParser(HisDataParser):
         self.batch_size = batch_size
         self.base_url = f"http://{host}:{port}"
         self.auth = (user, password)
-        self.table_name = 'his_timeseries_data'
+        self.table_name = 'points_data'
         
     def execute_query(self, query: str, data: list = None):
         """
@@ -142,12 +138,12 @@ class HisToClickHouseParser(HisDataParser):
                 query_with_data = query
                 for row in data:
                     values = []
-                    for key in ['timestamp', 'point_code', 'point_name', 'value', 'quality', 'xh', 'file_source', 'created_at']:
+                    for key in ['point_code', 'point_value', 'date_time', 'point_type']:
                         value = row.get(key, '')
                         if isinstance(value, str):
                             values.append(f"'{value}'")
                         elif isinstance(value, datetime):
-                            values.append(f"'{value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}'")
+                            values.append(f"'{value.strftime('%Y-%m-%d %H:%M:%S')}'")
                         else:
                             values.append(str(value))
                     query_with_data += f"\n({', '.join(values)})"
@@ -212,47 +208,35 @@ class HisToClickHouseParser(HisDataParser):
     
     def create_table_if_not_exists(self) -> bool:
         """
-        创建数据表（如果不存在）
+        检查数据表是否存在（使用现有表结构）
         
         Returns:
-            bool: 创建是否成功
+            bool: 检查是否成功
         """
         try:
-            create_sql = f"""
-            CREATE TABLE IF NOT EXISTS {self.table_name} (
-                timestamp DateTime64(3),
-                point_code String,
-                point_name String,
-                value Float64,
-                quality UInt8,
-                xh UInt32,
-                file_source String,
-                created_at DateTime DEFAULT now()
-            ) ENGINE = MergeTree()
-            ORDER BY (point_code, timestamp)
-            PARTITION BY toYYYYMM(timestamp)
-            """
+            # 检查表是否存在
+            check_sql = f"SHOW TABLES LIKE '{self.table_name}'"
             
-            result = self.execute_query(create_sql)
-            if result is not None:
-                print(f"数据表 {self.table_name} 创建/验证成功")
+            result = self.execute_query(check_sql)
+            if result is not None and len(result) > 0:
+                print(f"数据表 {self.table_name} 已存在，使用现有表结构")
                 return True
             else:
-                print(f"创建数据表失败")
+                print(f"数据表 {self.table_name} 不存在")
                 return False
             
         except Exception as e:
-            print(f"创建数据表失败: {e}")
+            print(f"检查数据表失败: {e}")
             return False
     
     def insert_data_points_batch(self, data_points: List[StructAxPoint],
                                  file_source: str) -> bool:
         """
-        批量插入数据点到ClickHouse
+        批量插入数据点到ClickHouse（适配现有表结构）
         
         Args:
             data_points: 数据点列表
-            file_source: 源文件名
+            file_source: 源文件名（用于识别数据点类型）
             
         Returns:
             bool: 插入是否成功
@@ -260,19 +244,26 @@ class HisToClickHouseParser(HisDataParser):
         if not data_points:
             return False
         
+        # 获取AX点和DX点的数量信息，用于判断点类型
+        temp_parser = HisDataParser()
+        idx_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "his-data", f"{file_source}.idx")
+        temp_parser.get_point_code_and_xh(idx_file_path)
+        ax_points_num = getattr(temp_parser, 'ax_points_num', 0)
+        
         try:
-            # 准备批量插入数据
+            # 准备批量插入数据（适配现有表结构）
             batch_data = []
             for point in data_points:
+                # 根据数据点的XH（序号）判断是AX还是DX点
+                # AX点的XH < ax_points_num，DX点的XH >= ax_points_num
+                point_type = 0 if point.XH < ax_points_num else 1
+                
                 batch_data.append({
-                    'timestamp': point.TimeStamp,
                     'point_code': point.PointCode,
-                    'point_name': point.PointName,
-                    'value': float(point.Value) if not pd.isna(point.Value) else 0.0,
-                    'quality': int(point.Quality),
-                    'xh': int(point.XH),
-                    'file_source': file_source,
-                    'created_at': datetime.now()
+                    'point_value': float(point.Value) if not pd.isna(point.Value) else 0.0,
+                    'date_time': point.TimeStamp,
+                    'point_type': point_type
                 })
             
             # 分批插入
@@ -282,7 +273,7 @@ class HisToClickHouseParser(HisDataParser):
                 
                 insert_sql = f"""
                 INSERT INTO {self.table_name}
-                (timestamp, point_code, point_name, value, quality, xh, file_source, created_at)
+                (point_code, point_value, date_time, point_type)
                 VALUES
                 """
                 
@@ -291,7 +282,7 @@ class HisToClickHouseParser(HisDataParser):
                     total_inserted += len(batch)
                     print(f"已插入 {total_inserted}/{len(batch_data)} 条记录")
                 else:
-                    print(f"批次插入失败")
+                    print("批次插入失败")
                     return False
             
             print(f"数据插入完成，共 {total_inserted} 条记录")
@@ -302,7 +293,7 @@ class HisToClickHouseParser(HisDataParser):
             return False
     
     def parse_and_save_to_clickhouse(self, directory: str, file_title: str,
-                                   point_name: str) -> bool:
+                                     point_name: str) -> bool:
         """
         解析HIS数据并保存到ClickHouse数据库
         
@@ -322,6 +313,7 @@ class HisToClickHouseParser(HisDataParser):
         
         # 创建数据表
         if not self.create_table_if_not_exists():
+            print("数据表不存在，请先创建表或检查表结构")
             return False
         
         try:
@@ -355,47 +347,45 @@ class HisToClickHouseParser(HisDataParser):
     
     def verify_insertion(self, point_name: str, file_source: str):
         """
-        验证数据插入结果
+        验证数据插入结果（适配现有表结构）
         
         Args:
             point_name: 数据点名称
-            file_source: 源文件名
+            file_source: 源文件名（这里不使用，因为现有表没有此字段）
         """
         try:
             # 查询插入的记录数
             count_sql = f"""
-            SELECT count(*) as cnt 
-            FROM {self.table_name} 
-            WHERE point_code = %(point_code)s AND file_source = %(file_source)s
+            SELECT count(*) as cnt
+            FROM {self.table_name}
+            WHERE point_code = '{point_name}'
             """
             
-            result = self.client.execute(
-                count_sql, 
-                {'point_code': point_name, 'file_source': file_source}
-            )
-            record_count = result[0][0] if result else 0
+            result = self.execute_query(count_sql)
+            record_count = int(result[0][0]) if result and result[0] else 0
             
-            # 查询时间范围
+            # 查询时间范围和平均值
             range_sql = f"""
-            SELECT 
-                min(timestamp) as min_time,
-                max(timestamp) as max_time,
-                avg(value) as avg_value
-            FROM {self.table_name} 
-            WHERE point_code = %(point_code)s AND file_source = %(file_source)s
+            SELECT
+                min(date_time) as min_time,
+                max(date_time) as max_time,
+                avg(point_value) as avg_value
+            FROM {self.table_name}
+            WHERE point_code = '{point_name}'
             """
             
-            range_result = self.client.execute(
-                range_sql,
-                {'point_code': point_name, 'file_source': file_source}
-            )
+            range_result = self.execute_query(range_sql)
             
-            if range_result:
+            if range_result and range_result[0]:
                 min_time, max_time, avg_value = range_result[0]
-                print(f"验证结果:")
+                print("验证结果:")
                 print(f"  - 插入记录数: {record_count}")
                 print(f"  - 时间范围: {min_time} 到 {max_time}")
-                print(f"  - 平均值: {avg_value:.4f}")
+                try:
+                    avg_val = float(avg_value) if avg_value else 0.0
+                    print(f"  - 平均值: {avg_val:.4f}")
+                except (ValueError, TypeError):
+                    print(f"  - 平均值: {avg_value}")
             
         except Exception as e:
             print(f"验证插入结果时出错: {e}")
@@ -403,7 +393,7 @@ class HisToClickHouseParser(HisDataParser):
     def query_data(self, point_name: str, start_time: Optional[datetime] = None,
                    end_time: Optional[datetime] = None, limit: int = 1000) -> List[Dict[str, Any]]:
         """
-        查询数据库中的数据
+        查询数据库中的数据（适配现有表结构）
         
         Args:
             point_name: 数据点名称
@@ -414,33 +404,25 @@ class HisToClickHouseParser(HisDataParser):
         Returns:
             List[Dict]: 查询结果
         """
-        if not self.client:
-            if not self.connect():
-                return []
-        
         try:
-            sql = f"SELECT * FROM {self.table_name} WHERE point_code = %(point_code)s"
-            params = {'point_code': point_name}
+            sql = f"SELECT * FROM {self.table_name} WHERE point_code = '{point_name}'"
             
             if start_time:
-                sql += " AND timestamp >= %(start_time)s"
-                params['start_time'] = start_time
+                sql += f" AND date_time >= '{start_time.strftime('%Y-%m-%d %H:%M:%S')}'"
             
             if end_time:
-                sql += " AND timestamp <= %(end_time)s"
-                params['end_time'] = end_time
+                sql += f" AND date_time <= '{end_time.strftime('%Y-%m-%d %H:%M:%S')}'"
 
-            sql += " ORDER BY timestamp"
+            sql += " ORDER BY date_time"
             
             if limit > 0:
                 sql += f" LIMIT {limit}"
             
-            results = self.client.execute(sql, params)
+            results = self.execute_query(sql)
             
-            # 转换为字典格式
-            columns = ['timestamp', 'point_code', 'point_name', 'value', 
-                      'quality', 'xh', 'file_source', 'created_at']
-            return [dict(zip(columns, row)) for row in results]
+            # 转换为字典格式（适配现有表结构）
+            columns = ['point_code', 'point_value', 'date_time', 'point_type']
+            return [dict(zip(columns, row)) for row in results] if results else []
             
         except Exception as e:
             print(f"查询数据时出错: {e}")
@@ -448,19 +430,15 @@ class HisToClickHouseParser(HisDataParser):
     
     def get_available_points(self) -> List[str]:
         """
-        获取数据库中所有可用的数据点
+        获取数据库中所有可用的数据点（适配现有表结构）
         
         Returns:
             List[str]: 数据点列表
         """
-        if not self.client:
-            if not self.connect():
-                return []
-        
         try:
             sql = f"SELECT DISTINCT point_code FROM {self.table_name} ORDER BY point_code"
-            results = self.client.execute(sql)
-            return [row[0] for row in results]
+            results = self.execute_query(sql)
+            return [row[0] for row in results] if results else []
             
         except Exception as e:
             print(f"获取数据点列表时出错: {e}")
@@ -469,65 +447,106 @@ class HisToClickHouseParser(HisDataParser):
 
 def main():
     """
-    演示函数
+    主函数 - 批量处理所有数据点
     """
     # 设置数据目录
     data_dir = "/Users/zx_ll/Desktop/some_code/just-some-code/DCS-data-process/his-data"
 
-    # 创建解析器
+    # 创建解析器 - 使用ezhou数据库
     parser = HisToClickHouseParser(
         host='192.168.50.30',
         port=8123,
-        database='default',
+        database='ezhou',
         user='default',
         password='er3HsdSE2dQIS^VI',
-        batch_size=1000
+        batch_size=2000
     )
 
     # 解析指定文件
     filename_base = "2025070222"
 
-    print("=== HIS数据到ClickHouse导入器 ===")
+    print("=== HIS数据到ClickHouse批量导入器 ===")
     print(f"目标文件: {filename_base}")
-    print(f"ClickHouse: 192.168.50.30:8123")
+    print("目标数据库: ezhou")
+    print("ClickHouse: 192.168.50.30:8123")
     print()
 
-    # 首先获取可用的数据点列表
+    # 首先获取所有可用的数据点列表
     temp_parser = HisDataParser()
     temp_parser.get_point_code_and_xh(os.path.join(data_dir, f"{filename_base}.idx"))
 
-    if temp_parser.m_codeToXh:
-        available_points = list(temp_parser.m_codeToXh.keys())[:10]
-        print(f"可用数据点(前10个): {available_points}")
-
-        # 选择一个数据点进行解析
-        if "20MCS-UNITMW" in temp_parser.m_codeToXh:
-            target_point = "20MCS-UNITMW"
-        else:
-            target_point = available_points[0] if available_points else None
-
-        if target_point:
-            print(f"选择数据点: {target_point}")
-            success = parser.parse_and_save_to_clickhouse(data_dir, filename_base, target_point)
-
-            if success:
-                print(f"数据点 '{target_point}' 成功保存到ClickHouse数据库")
-
-                # 演示查询功能
-                print("\n=== 查询验证 ===")
-                query_results = parser.query_data(target_point, limit=5)
-                if query_results:
-                    print("查询结果(前5条):")
-                    for i, record in enumerate(query_results):
-                        print(f"  {i+1}. {record['timestamp']} - {record['value']}")
-            else:
-                print("数据保存失败")
-        else:
-            print("未找到可用的数据点")
-    else:
+    if not temp_parser.m_codeToXh:
         print("无法获取数据点列表")
+        return
+
+    all_points = list(temp_parser.m_codeToXh.keys())
+    total_points = len(all_points)
+    print(f"发现 {total_points} 个数据点，开始批量处理...")
+    print()
+
+    # 统计变量
+    success_count = 0
+    failed_count = 0
+    failed_points = []
+
+    # 逐个处理每个数据点
+    for i, point_code in enumerate(all_points):
+        print(f"[{i + 1}/{total_points}] 处理数据点: {point_code}")
+        
+        try:
+            success = parser.parse_and_save_to_clickhouse(data_dir, filename_base, point_code)
+            
+            if success:
+                success_count += 1
+                print("  ✅ 成功")
+            else:
+                failed_count += 1
+                failed_points.append(point_code)
+                print("  ❌ 失败")
+                
+        except Exception as e:
+            failed_count += 1
+            failed_points.append(point_code)
+            print(f"  ❌ 异常: {e}")
+        
+        print()  # 空行分隔
+
+    # 输出最终统计结果
+    print("=== 批量处理完成 ===")
+    print(f"总数据点数: {total_points}")
+    print(f"成功处理: {success_count}")
+    print(f"处理失败: {failed_count}")
     
-    print("\n=== 处理完成 ===")
+    if failed_points:
+        print("\n失败的数据点:")
+        for point in failed_points:
+            print(f"  - {point}")
+    
+    # 验证数据库中的总记录数
+    try:
+        print("\n=== 数据库验证 ===")
+        count_sql = "SELECT count(*) FROM points_data"
+        result = parser.execute_query(count_sql)
+        if result and result[0]:
+            total_records = int(result[0][0])
+            print(f"数据库中总记录数: {total_records:,}")
+            print(f"平均每个成功数据点记录数: {total_records // success_count if success_count > 0 else 0}")
+        
+        # 查询数据点类型分布
+        type_sql = "SELECT point_type, count(*) as cnt FROM points_data GROUP BY point_type ORDER BY point_type"
+        type_result = parser.execute_query(type_sql)
+        if type_result:
+            print("\n数据点类型分布:")
+            for row in type_result:
+                point_type, count = row[0], row[1]
+                type_name = "AX点(模拟量)" if point_type == "0" else "DX点(数字量)"
+                print(f"  {type_name}: {count:,} 条记录")
+                
+    except Exception as e:
+        print(f"数据库验证时出错: {e}")
+    
+    print("\n=== 全部处理完成 ===")
+    print(f"处理成功率: {success_count / total_points * 100:.1f}%")
 
 
 def main_with_args():
@@ -574,7 +593,7 @@ def main_with_args():
             available_points = list(temp_parser.m_codeToXh.keys())[:20]
             print("可用数据点(前20个):")
             for i, point in enumerate(available_points):
-                print(f"  {i+1}. {point}")
+                print(f"  {i + 1}. {point}")
             print("\n请使用 --point 参数指定数据点名称")
         else:
             print("无法获取数据点列表")
@@ -590,7 +609,6 @@ def main_with_args():
 
 
 if __name__ == "__main__":
-    import sys
     if len(sys.argv) > 1:
         main_with_args()
     else:
