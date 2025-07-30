@@ -604,11 +604,11 @@ def main_with_args():
     import argparse
 
     parser = argparse.ArgumentParser(description='ClickHouse数据库结构检查器')
-    parser.add_argument('--host', default='192.168.50.30', help='ClickHouse主机地址')
+    parser.add_argument('--host', default='127.0.0.1', help='ClickHouse主机地址')
     parser.add_argument('--port', type=int, default=8123, help='ClickHouse端口')
     parser.add_argument('--database', default='default', help='数据库名')
     parser.add_argument('--user', default='default', help='用户名')
-    parser.add_argument('--password', default='er3HsdSE2dQIS^VI', help='密码')
+    parser.add_argument('--password', default='', help='密码er3HsdSE2dQIS^VI')
     parser.add_argument('--output', '-o', default='.', help='输出目录')
     parser.add_argument('--test-only', action='store_true', help='仅执行连接测试')
 
