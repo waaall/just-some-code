@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HIS历史数据到ClickHouse数据库导入器 - 单线程优化版
+HIS历史数据到ClickHouse数据库导入器
 ==================================================
+
+功能概述:
+--------
+本工具继承自HisDataParser类, 专门用于将解析的HIS历史数据直接写入ClickHouse数据库。
+
+
 使用说明:
 --------
     支持的参数:
@@ -25,18 +31,13 @@ HIS历史数据到ClickHouse数据库导入器 - 单线程优化版
     4. 测试模式(只处理前10个数据点):
        python his_to_clickhouse.py --limit 10
 
-功能概述:
---------
-本工具继承自HisDataParser类, 专门用于将解析的HIS历史数据直接写入ClickHouse数据库。
 
 核心特性:
 --------
-1. 继承原有解析功能:复用HisDataParser的解析能力
-2. ClickHouse连接管理:支持连接池和自动重连
-3. 批量写入优化:使用批量插入提升写入性能
-4. 数据类型映射:自动处理Python到ClickHouse的类型转换
-5. 错误处理:完善的异常处理和重试机制
-6. 表结构管理:自动创建和管理数据表结构
+- 继承原有解析功能:复用HisDataParser的解析能力
+- ClickHouse连接管理:支持连接池和自动重连
+- 数据类型映射:自动处理Python到ClickHouse的类型转换
+
 
 数据库设计:使用现有数据库表结构,进行数据插入
 ----------
@@ -46,6 +47,7 @@ table字段:
 - date_time: DateTime - 时间戳
 - point_type: Int8 - 数据点类型
 - param_code String - 参数代码(一般为空)
+
 
 作者: zhengxu
 版本: 2.2
@@ -208,14 +210,12 @@ VALUES {','.join(values_parts)}"""
 
     def _insert_point_csv_data(self, point_name: str, point_all_data: List) -> bool:
         """
-        优化版批量插入:直接使用StructPoint对象, 采用CSV格式批量插入
+        批量插入:直接使用StructPoint对象, 采用CSV格式批量插入
         ===============================================================
 
         - 使用CSV格式批量插入, 比VALUES语句更高效
         - 减少HTTP请求次数, 提升网络传输效率
         - ClickHouse对CSV格式有优化的解析器
-
-        - CSV流式处理内存占用更稳定
         """
         try:
             if not point_all_data:
@@ -345,7 +345,7 @@ VALUES {','.join(values_parts)}"""
                 insert_func = self._insert_point_csv_data
             print()
 
-            # 5. 逐个处理数据点（优化版）
+            # 5. 逐个处理数据点
             for i, point_name in enumerate(target_points, 1):
                 try:
                     # 直接获取StructPoint对象, 无需转换
@@ -420,8 +420,6 @@ VALUES {','.join(values_parts)}"""
         total_elapsed = end_time - self.stats['start_time']
 
         print("\n" + "=" * 60)
-        print("🎉 稳定版处理完成统计")
-        print("=" * 60)
         print(f"⏱️  总耗时: {total_elapsed:.1f} 秒 ({total_elapsed / 60:.1f} 分钟)")
         print(f"📊 IDX解析耗时: {self.stats['idx_parse_time']:.2f} 秒")
         print(f"📊 数据处理耗时: {total_elapsed - self.stats['idx_parse_time']:.1f} 秒")
