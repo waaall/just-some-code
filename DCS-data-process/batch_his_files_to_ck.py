@@ -56,11 +56,19 @@ import os
 import sys
 import time
 import glob
-import subprocess
 import argparse
+import io
+import contextlib
 from datetime import datetime
 from typing import List, Tuple, Dict
 from pathlib import Path
+
+# 导入HisToClickHouseParser类
+try:
+    from his_to_clickhouse import HisToClickHouseParser
+except ImportError:
+    print("[ERROR] 无法导入his_to_clickhouse模块")
+    sys.exit(1)
 
 
 class BatchHisProcessor:
@@ -105,6 +113,43 @@ class BatchHisProcessor:
             'start_time': None,
             'skipped_files': 0
         }
+
+    @contextlib.contextmanager
+    def _capture_output_to_log(self, file_prefix: str):
+        """
+        上下文管理器: 捕获stdout输出并记录到日志文件
+        同时保持控制台输出
+        """
+        # 创建一个StringIO对象来捕获输出
+        captured_output = io.StringIO()
+
+        # 保存原始的stdout
+        original_stdout = sys.stdout
+
+        class TeeOutput:
+            """同时输出到控制台和捕获缓冲区的类"""
+            def write(self, text):
+                original_stdout.write(text)  # 输出到控制台
+                captured_output.write(text)  # 捕获到缓冲区
+
+            def flush(self):
+                original_stdout.flush()
+                captured_output.flush()
+
+        try:
+            # 重定向stdout到TeeOutput
+            sys.stdout = TeeOutput()
+            yield
+        finally:
+            # 恢复原始stdout
+            sys.stdout = original_stdout
+
+            # 获取捕获的输出并记录到日志
+            output_content = captured_output.getvalue()
+            if output_content.strip():
+                self._log(f"--- {file_prefix} 处理输出 ---")
+                self._log(output_content.rstrip())
+                self._log(f"--- {file_prefix} 输出结束 ---")
 
     def discover_his_files(self) -> List[Tuple[str, str]]:
         """
@@ -228,60 +273,41 @@ class BatchHisProcessor:
         print(f"\n[START] 处理文件: {file_prefix} (尝试 {attempt}/{self.retry + 1})")
         self._log(f"开始处理文件: {file_prefix} (尝试 {attempt})")
 
-        # 构建命令行
-        cmd = [
-            sys.executable, "his_to_clickhouse.py",
-            "--file", file_prefix,
-            "--dir", str(self.data_dir),
-            "--method", self.method,
-            "--host", self.host,
-            "--port", str(self.port),
-            "--database", self.database
-        ]
-
-        # 如果指定了target_points，添加--points参数
-        if self.target_points:
-            points_str = ','.join(self.target_points)
-            cmd.extend(["--points", points_str])
-
         try:
-            # 执行命令并捕获输出
-            start_time = time.time()
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=3600,  # 1小时超时
-                cwd=Path(__file__).parent
+            # 创建HisToClickHouseParser实例
+            clickhouse_parser = HisToClickHouseParser(
+                host=self.host,
+                port=self.port,
+                database=self.database,
+                user='default',
+                password='er3HsdSE2dQIS^VI'
             )
+
+            # 执行处理并捕获输出
+            start_time = time.time()
+
+            # 使用上下文管理器捕获输出到日志
+            with self._capture_output_to_log(file_prefix):
+                # 直接调用parse_points_to_clickhouse方法
+                success = clickhouse_parser.parse_points_to_clickhouse(
+                    directory=str(self.data_dir),
+                    file_prefix=file_prefix,
+                    point_names=self.target_points,
+                    insert_method=self.method
+                )
+
             elapsed = time.time() - start_time
 
-            # 记录输出到日志
-            self._log(f"--- {file_prefix} 标准输出 ---")
-            if result.stdout:
-                self._log(result.stdout)
-                # 同时显示在控制台
-                print(result.stdout)
-
-            if result.stderr:
-                self._log(f"--- {file_prefix} 错误输出 ---")
-                self._log(result.stderr)
-                print(f"[ERROR] 错误输出: {result.stderr}")
-
-            # 检查返回码
-            if result.returncode == 0:
+            # 记录处理结果
+            if success:
                 print(f"[OK] {file_prefix} 处理成功 (耗时: {elapsed:.1f}秒)")
                 self._log(f"文件 {file_prefix} 处理成功, 耗时: {elapsed:.1f}秒")
                 return True
             else:
-                print(f"[ERROR] {file_prefix} 处理失败 (返回码: {result.returncode})")
-                self._log(f"文件 {file_prefix} 处理失败, 返回码: {result.returncode}")
+                print(f"[ERROR] {file_prefix} 处理失败")
+                self._log(f"文件 {file_prefix} 处理失败")
                 return False
 
-        except subprocess.TimeoutExpired:
-            print(f"[ERROR] {file_prefix} 处理超时 (超过1小时)")
-            self._log(f"文件 {file_prefix} 处理超时")
-            return False
         except Exception as e:
             print(f"[ERROR] {file_prefix} 处理异常: {e}")
             self._log(f"文件 {file_prefix} 处理异常: {e}")
@@ -308,14 +334,14 @@ class BatchHisProcessor:
         print(f" 日志文件: {self.log_file}")
 
         if self.target_files:
-            print(f"📁 指定文件: {', '.join(self.target_files)}")
+            print(f"指定文件: {', '.join(self.target_files)}")
         else:
-            print("📁 处理模式: 全部文件")
+            print("处理模式: 全部文件")
 
         if self.target_points:
-            print(f"🎯 指定数据点: {', '.join(self.target_points)}")
+            print(f"指定数据点: {', '.join(self.target_points)}")
         else:
-            print("🎯 数据点模式: 全部数据点")
+            print("数据点模式: 全部数据点")
 
         print("=" * 60)
 
@@ -447,13 +473,6 @@ def main():
     args = parser.parse_args()
 
     try:
-        # 检查his_to_clickhouse.py是否存在
-        script_path = Path(__file__).parent / "his_to_clickhouse.py"
-        if not script_path.exists():
-            print("[ERROR] 错误: 找不到his_to_clickhouse.py文件")
-            print(f"   请确保 {script_path} 存在")
-            sys.exit(1)
-
         # 检查数据目录是否存在
         if not Path(args.dir).exists():
             print(f"[ERROR] 错误: 数据目录不存在: {args.dir}")

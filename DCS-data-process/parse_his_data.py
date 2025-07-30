@@ -15,11 +15,7 @@ HIS历史数据文件解析器
 -----------
 HIS文件系统包含两个关键文件:
 1. IDX文件(索引文件):包含数据点定义、时间索引和数据块地址映射
-2. HIS文件(历史数据文              print(f"[OK] 成功解析 {len(self._point_info_cache)} 个有效数据点")
-            print(f"[CACHE] 缓存了 {len(self._point_info_cache)} 个数据点信息")
-            return True       print(f"[OK] 成功解析 {len(self._point_info_cache)} 个有效数据点")
-            print(f"[CACHE] 缓存了 {len(self._point_info_cache)} 个数据点信息")
-            return True包含实际的压缩时序数据
+2. HIS文件(历史数据文件):包含时序数据
 
 数据结构:
 --------
@@ -356,7 +352,7 @@ class HisDataParser:
             self._idx_parsed = True
 
             print(f"成功解析 {len(self._point_info_cache)} 个有效数据点")
-            print(f"💾 缓存了 {len(self._point_info_cache)} 个数据点信息")
+            print(f"缓存了 {len(self._point_info_cache)} 个数据点信息")
             return True
 
         except Exception as e:
@@ -674,9 +670,9 @@ class HisDataParser:
                         block_time, point_info.point_type)
                     point_all_data.extend(points_block_data)
 
-                    if len(points_block_data) > 0:
-                        time_str = f"{time_block * 2:02d}:{time_block * 2 + 1:02d}分钟"
-                        print(f"时间块 {time_block} ({time_str}): {len(points_block_data)} 个数据点")
+                    # if len(points_block_data) > 0:
+                    #     time_str = f"{time_block * 2:02d}:{time_block * 2 + 1:02d}分钟"
+                    #     print(f"时间块 {time_block} ({time_str}): {len(points_block_data)} 个数据点")
 
                 except Exception as e:
                     print(f"[Warning] 时间块 {time_block} 处理失败: {e}")
@@ -708,7 +704,9 @@ class HisDataParser:
 
         print("已清空所有缓存 (包括IDX和HIS文件缓存)")
 
-    def export_to_excel(self, data_points: List[PointDataStruct], file_title: str, point_name: str) -> str:
+    def export_to_excel(self, data_points: List[PointDataStruct],
+                        file_title: str, point_name: str,
+                        directory: str = "./his-data") -> str:
         """
         Excel报表导出与统计分析
         =====================
@@ -742,14 +740,16 @@ class HisDataParser:
         --------
         格式:{file_title}_{safe_point_name}_timeseries.xlsx
         安全化规则:/ \\ : * ? " < > | 替换为 _
+        保存位置:HIS文件所在目录
 
         Args:
             data_points: 数据点列表
             file_title: 文件名标题
             point_name: 数据点名称
+            directory: HIS文件所在目录 (默认: "./his-data")
 
         Returns:
-            str: 输出文件名(成功时)或空字符串(失败时)
+            str: 输出文件的完整路径(成功时)或空字符串(失败时)
         """
         if not data_points:
             print("没有数据可导出")
@@ -759,8 +759,12 @@ class HisDataParser:
         safe_point_name = (point_name.replace('/', '_').replace('\\', '_').replace(':', '_')
                            .replace('*', '_').replace('?', '_').replace('"', '_')
                            .replace('<', '_').replace('>', '_').replace('|', '_'))
+        
+        # 构建完整的输出文件路径 - 保存到HIS文件所在目录
         output_filename = f"{file_title}_{safe_point_name}_timeseries.xlsx"
-        print(f"正在导出数据点'{point_name}'的 {len(data_points)} 个时序数据到Excel文件: {output_filename}")
+        output_filepath = os.path.join(directory, output_filename)
+        
+        print(f"正在导出数据点'{point_name}'的 {len(data_points)} 个时序数据到Excel文件: {output_filepath}")
 
         try:
             # 创建DataFrame
@@ -790,7 +794,7 @@ class HisDataParser:
             }
 
             # 导出到Excel
-            with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+            with pd.ExcelWriter(output_filepath, engine='openpyxl') as writer:
                 # 主数据表
                 df.to_excel(writer, sheet_name=f'{safe_point_name}_时序数据', index=False)
 
@@ -818,9 +822,9 @@ class HisDataParser:
                     hourly_summary.columns = ['记录数', '平均值', '最小值', '最大值']
                     hourly_summary.to_excel(writer, sheet_name='每2分钟汇总')
 
-            print(f"导出完成: {output_filename}")
+            print(f"导出完成: {output_filepath}")
             print(f"导出了数据点'{point_name}'的 {total_records} 个时序数据")
-            return output_filename
+            return output_filepath
 
         except Exception as e:
             print(f"导出Excel时出错: {e}")
@@ -945,7 +949,7 @@ def main():
 
                 # 根据excel参数决定是否导出
                 if args.excel:
-                    output_file = parser.export_to_excel(point_all_data, args.file, point_name)
+                    output_file = parser.export_to_excel(point_all_data, args.file, point_name, args.dir)
                     if output_file:
                         print(f"Excel导出完成: {output_file}")
                         successful_exports += 1
