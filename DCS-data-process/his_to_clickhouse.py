@@ -120,44 +120,44 @@ class HisToClickHouseParser(HisDataParser):
                 return response.text.strip()
             except Exception as e:
                 if attempt < retries - 1:
-                    print(f"⚠️  查询失败 (尝试 {attempt + 1}/{retries}): {e}")
+                    print(f"[Warning]查询失败 (尝试 {attempt + 1}/{retries}): {e}")
                     time.sleep(2)  # 等待2秒重试
                     continue
                 else:
-                    print(f"❌ ClickHouse查询最终失败: {e}")
+                    print(f"[ERROR]ClickHouse查询最终失败: {e}")
                     return None
 
     def _test_connection(self) -> bool:
         """测试ClickHouse连接"""
-        print("🔗 测试ClickHouse连接...")
+        print("测试ClickHouse连接...")
         try:
             result = self._execute_clickhouse_query("SELECT 1")
             if result == "1":
-                print(f"✅ ClickHouse连接成功: {self.base_url}/{self.database}")
+                print(f"ClickHouse连接成功: {self.base_url}/{self.database}")
                 return True
             else:
-                print("❌ ClickHouse连接失败: 返回结果异常")
+                print("[ERROR]ClickHouse连接失败: 返回结果异常")
                 return False
         except Exception as e:
-            print(f"❌ ClickHouse连接失败: {e}")
+            print(f"[ERROR]ClickHouse连接失败: {e}")
             return False
 
     def _ensure_table_exists(self) -> bool:
         """确保points_data表存在"""
-        print("📋 检查数据表...")
+        print("检查数据表...")
         try:
             check_query = "SELECT 1 FROM points_data LIMIT 1"
             result = self._execute_clickhouse_query(check_query)
 
             if result is not None:
-                print("✅ 表points_data已存在, 使用现有表结构")
+                print("表points_data已存在, 使用现有表结构")
                 return True
             else:
-                print("❌ 表points_data不存在")
+                print("[ERROR]表points_data不存在")
                 return False
 
         except Exception as e:
-            print(f"❌ 检查表结构失败: {e}")
+            print(f"[ERROR]检查表结构失败: {e}")
             return False
 
     def _insert_point_data(self, point_name: str, point_all_data: List) -> bool:
@@ -171,12 +171,12 @@ class HisToClickHouseParser(HisDataParser):
         """
         try:
             if not point_all_data:
-                print(f"⚠️  数据点 '{point_name}' 无时序数据, 跳过")
+                print(f"[Warning]数据点 '{point_name}' 无时序数据, 跳过")
                 return False
 
             total_records = len(point_all_data)
             if total_records > 8000:
-                print(f"❌ 数据点 '{point_name}' 记录数过多 ({total_records}), 拒绝处理")
+                print(f"[ERROR]数据点 '{point_name}' 记录数过多 ({total_records}), 拒绝处理")
                 return False
 
             # 构建VALUES子句列表
@@ -198,14 +198,14 @@ VALUES {','.join(values_parts)}"""
             if result is not None:
                 self.stats['total_records'] += total_records
                 point_type = point_all_data[0].point_type
-                print(f"✅ {point_name}: {total_records:,}条记录 (type={point_type}) [VALUES批量]")
+                print(f"{point_name}: {total_records:,}条记录 (type={point_type}) [VALUES批量]")
                 return True
             else:
-                print(f"❌ 数据点 '{point_name}' VALUES插入失败")
+                print(f"[ERROR]数据点 '{point_name}' VALUES插入失败")
                 return False
 
         except Exception as e:
-            print(f"❌ 数据点 '{point_name}' 处理失败: {e}")
+            print(f"[ERROR]数据点 '{point_name}' 处理失败: {e}")
             return False
 
     def _insert_point_csv_data(self, point_name: str, point_all_data: List) -> bool:
@@ -219,7 +219,7 @@ VALUES {','.join(values_parts)}"""
         """
         try:
             if not point_all_data:
-                print(f"⚠️  数据点 '{point_name}' 无时序数据, 跳过")
+                print(f"[Warning]数据点 '{point_name}' 无时序数据, 跳过")
                 return False
 
             total_records = len(point_all_data)
@@ -255,15 +255,15 @@ VALUES {','.join(values_parts)}"""
 
                 self.stats['total_records'] += total_records
                 point_type = point_all_data[0].point_type
-                print(f"✅ {point_name}: {total_records:,}条记录 (type={point_type}) [CSV批量]")
+                print(f"{point_name}: {total_records:,}条记录 (type={point_type}) [CSV批量]")
                 return True
 
             except Exception as e:
-                print(f"❌ CSV批量插入失败: {e}")
+                print(f"[ERROR]CSV批量插入失败: {e}")
                 return False
 
         except Exception as e:
-            print(f"❌ 数据点 '{point_name}' 处理失败: {e}")
+            print(f"[ERROR]数据点 '{point_name}' 处理失败: {e}")
             return False
 
     def parse_points_to_clickhouse(self, directory: str, file_prefix: str,
@@ -279,16 +279,16 @@ VALUES {','.join(values_parts)}"""
             point_names: 要处理的数据点列表, None表示处理全部
             insert_method: 插入方法 ("values" 或 "csv")
         """
-        print("🚀 === HIS数据到ClickHouse批量导入 ===")
-        print(f"📂 目标文件: {file_prefix}")
-        print(f"🗄️  目标数据库: {self.database}")
-        print(f"🔗 服务器: {self.host}:{self.port}")
-        print(f"🔧 插入方法: {insert_method.upper()}")
+        print("=== HIS数据到ClickHouse批量导入 ===")
+        print(f"目标文件: {file_prefix}")
+        print(f"目标数据库: {self.database}")
+        print(f"服务器: {self.host}:{self.port}")
+        print(f"插入方法: {insert_method.upper()}")
 
         if point_names:
-            print(f"🎯 指定处理: {len(point_names)} 个数据点")
+            print(f"指定处理: {len(point_names)} 个数据点")
         else:
-            print("🎯 处理模式: 全部数据点")
+            print("处理模式: 全部数据点")
         print()
 
         self.stats['start_time'] = time.time()
@@ -311,7 +311,7 @@ VALUES {','.join(values_parts)}"""
             if point_names is None:
                 # 处理所有数据点
                 target_points = list(self._point_info_cache.keys())
-                print(f"📋 将处理全部 {len(target_points):,} 个数据点")
+                print(f"将处理全部 {len(target_points):,} 个数据点")
             else:
                 # 验证指定的数据点
                 target_points = []
@@ -324,24 +324,24 @@ VALUES {','.join(values_parts)}"""
                         invalid_points.append(point_name)
 
                 if invalid_points:
-                    print(f"⚠️  无效数据点 ({len(invalid_points)}个): {', '.join(invalid_points[:5])}")
+                    print(f"[Warning]无效数据点 ({len(invalid_points)}个): {', '.join(invalid_points[:5])}")
                     if len(invalid_points) > 5:
                         print(f"    ... 还有 {len(invalid_points) - 5} 个")
 
-                print(f"📋 将处理 {len(target_points)} 个有效数据点")
+                print(f"将处理 {len(target_points)} 个有效数据点")
 
                 if not target_points:
-                    print("❌ 没有有效的数据点可处理")
+                    print("[ERROR]没有有效的数据点可处理")
                     return False
 
             self.stats['total_points'] = len(target_points)
 
             # 选择插入方法
             if insert_method.lower() == "values":
-                print("🔧 优化策略: 直接StructPoint对象 + VALUES批量插入")
+                print("StructPoint对象 + VALUES批量插入")
                 insert_func = self._insert_point_data
             else:
-                print("🔧 优化策略: 直接StructPoint对象 + CSV批量插入")
+                print("StructPoint对象 + CSV批量插入")
                 insert_func = self._insert_point_csv_data
             print()
 
@@ -359,7 +359,7 @@ VALUES {','.join(values_parts)}"""
                         else:
                             self.stats['failed_points'] += 1
                     else:
-                        print(f"⚠️  [{i:,}/{len(target_points):,}] {point_name}: 无数据")
+                        print(f"[Warning][{i:,}/{len(target_points):,}] {point_name}: 无数据")
                         self.stats['failed_points'] += 1
 
                     self.stats['processed_points'] += 1
@@ -369,7 +369,7 @@ VALUES {','.join(values_parts)}"""
                         self._print_progress()
 
                 except Exception as e:
-                    print(f"❌ [{i:,}] {point_name} 处理失败: {e}")
+                    print(f"[ERROR][{i:,}] {point_name} 处理失败: {e}")
                     self.stats['failed_points'] += 1
                     self.stats['processed_points'] += 1
 
@@ -378,7 +378,7 @@ VALUES {','.join(values_parts)}"""
             return True
 
         except Exception as e:
-            print(f"❌ 批量处理失败: {e}")
+            print(f"[ERROR]批量处理失败: {e}")
             traceback.print_exc()
             return False
 
@@ -408,11 +408,11 @@ VALUES {','.join(values_parts)}"""
 
                 points_per_sec = processed / elapsed if elapsed > 0 else 0
 
-                print(f"📊 [{processed:,}/{total:,}] {percentage:.1f}% | "
-                      f"✅{successful:,} ❌{failed:,} | "
-                      f"📈{records:,}条记录 | "
-                      f"⚡{points_per_sec:.1f}点/秒 | "
-                      f"⏱️ 剩余{eta_str}")
+                print(f"[{processed:,}/{total:,}] {percentage:.1f}% | "
+                      f"{successful:,} {failed:,} | "
+                      f"{records:,}条记录 | "
+                      f"{points_per_sec:.1f}点/秒 | "
+                      f"剩余{eta_str}")
 
     def _print_final_stats(self):
         """打印最终统计信息"""
@@ -420,20 +420,20 @@ VALUES {','.join(values_parts)}"""
         total_elapsed = end_time - self.stats['start_time']
 
         print("\n" + "=" * 60)
-        print(f"⏱️  总耗时: {total_elapsed:.1f} 秒 ({total_elapsed / 60:.1f} 分钟)")
-        print(f"📊 IDX解析耗时: {self.stats['idx_parse_time']:.2f} 秒")
-        print(f"📊 数据处理耗时: {total_elapsed - self.stats['idx_parse_time']:.1f} 秒")
-        print(f"📈 总数据点: {self.stats['total_points']:,}")
-        print(f"✅ 成功处理: {self.stats['successful_points']:,}")
-        print(f"❌ 失败处理: {self.stats['failed_points']:,}")
-        print(f"📈 成功率: {(self.stats['successful_points'] / max(1, self.stats['total_points']) * 100):.1f}%")
-        print(f"💾 总记录数: {self.stats['total_records']:,}")
+        print(f"总耗时: {total_elapsed:.1f} 秒 ({total_elapsed / 60:.1f} 分钟)")
+        print(f"IDX解析耗时: {self.stats['idx_parse_time']:.2f} 秒")
+        print(f"数据处理耗时: {total_elapsed - self.stats['idx_parse_time']:.1f} 秒")
+        print(f"总数据点: {self.stats['total_points']:,}")
+        print(f"成功处理: {self.stats['successful_points']:,}")
+        print(f"[ERROR]失败处理: {self.stats['failed_points']:,}")
+        print(f"成功率: {(self.stats['successful_points'] / max(1, self.stats['total_points']) * 100):.1f}%")
+        print(f"总记录数: {self.stats['total_records']:,}")
 
         if total_elapsed > 0:
             points_per_sec = self.stats['processed_points'] / total_elapsed
             records_per_sec = self.stats['total_records'] / total_elapsed
-            print(f"⚡ 处理速度: {points_per_sec:.1f} 数据点/秒")
-            print(f"⚡ 插入速度: {records_per_sec:.1f} 记录/秒")
+            print(f"处理速度: {points_per_sec:.1f} 数据点/秒")
+            print(f"插入速度: {records_per_sec:.1f} 记录/秒")
 
         print("=" * 60)
 
@@ -489,16 +489,16 @@ def main():
 
         # 如果只是列出数据点
         if args.list:
-            print("🔍 正在解析IDX文件以获取数据点列表...")
+            print("正在解析IDX文件以获取数据点列表...")
             idx_filepath = os.path.join(args.dir, f"{args.file}.idx")
 
             if not os.path.exists(idx_filepath):
-                print(f"❌ IDX文件不存在: {idx_filepath}")
+                print(f"[ERROR]IDX文件不存在: {idx_filepath}")
                 return
 
             if clickhouse_parser.idx_info_parser(idx_filepath):
                 all_points = list(clickhouse_parser._point_info_cache.keys())
-                print(f"\n📋 发现 {len(all_points)} 个数据点:")
+                print(f"\n发现 {len(all_points)} 个数据点:")
                 print("=" * 60)
 
                 for i, point_name in enumerate(all_points, 1):
@@ -509,7 +509,7 @@ def main():
                 print("=" * 60)
                 print(f"总计: {len(all_points)} 个数据点")
             else:
-                print("❌ 解析IDX文件失败")
+                print("[ERROR]解析IDX文件失败")
             return
 
         # 确定要处理的数据点
@@ -517,17 +517,17 @@ def main():
         if args.points:
             # 解析指定的数据点
             target_points = [p.strip() for p in args.points.split(',') if p.strip()]
-            print(f"🎯 用户指定了 {len(target_points)} 个数据点")
+            print(f"用户指定了 {len(target_points)} 个数据点")
         elif args.limit:
             # 限制模式:先解析IDX获取数据点列表
-            print(f"🧪 测试模式:限制处理前 {args.limit} 个数据点")
+            print(f"测试模式:限制处理前 {args.limit} 个数据点")
             idx_filepath = os.path.join(args.dir, f"{args.file}.idx")
             if clickhouse_parser.idx_info_parser(idx_filepath):
                 all_points = list(clickhouse_parser._point_info_cache.keys())
                 target_points = all_points[:args.limit]
-                print(f"🎯 将处理前 {len(target_points)} 个数据点")
+                print(f"将处理前 {len(target_points)} 个数据点")
             else:
-                print("❌ 解析IDX文件失败")
+                print("[ERROR]解析IDX文件失败")
                 return
 
         # 执行批量处理
@@ -539,14 +539,14 @@ def main():
         )
 
         if success:
-            print("\n🎉 批量处理成功完成！")
+            print("\n批量处理成功完成！")
         else:
-            print("\n❌ 批量处理失败！")
+            print("\n[ERROR]批量处理失败！")
 
     except KeyboardInterrupt:
-        print("\n⏹️  用户中断处理")
+        print("\n用户中断处理")
     except Exception as e:
-        print(f"\n❌ 处理过程中出错: {e}")
+        print(f"\n[ERROR]处理过程中出错: {e}")
         traceback.print_exc()
 
 

@@ -1016,12 +1016,12 @@ def main():
         # 导出Excel文件
         if analyzer.export_to_excel(ax_points, dx_points, time_index_data,
                                     points_excel_file, index_excel_file):
-            print(f"✓ 数据点Excel已保存到: {points_excel_file}")
-            print(f"✓ 索引Excel已保存到: {index_excel_file}")
+            print(f"[OK] 数据点Excel已保存到: {points_excel_file}")
+            print(f"[OK] 索引Excel已保存到: {index_excel_file}")
         else:
-            print("✗ Excel导出失败")
+            print("[ERROR] Excel导出失败")
     else:
-        print("\n✗ 分析失败")
+        print("\n[ERROR] 分析失败")
 
 
 if __name__ == "__main__":

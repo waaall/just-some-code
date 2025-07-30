@@ -12,7 +12,7 @@ HIS文件批量处理器 - ClickHouse数据库批量导入工具
 核心功能:
 --------
 1. 自动文件发现:扫描目录下所有.his文件及对应的.idx文件
-2. 串行批量处理:逐个调用his_to_clickhouse.py处理每个文件
+2. 串行批量处理:逐个调用his_to_clickhouse.py进行数据导入
 3. 日志记录:捕获所有输出信息并保存到日志文件
 4. 进度监控:实时显示处理进度和统计信息
 5. 错误处理:完善的异常处理和失败重试机制
@@ -113,7 +113,7 @@ class BatchHisProcessor:
         Returns:
             List[Tuple[str, str]]: (file_prefix, his_file_path) 的列表
         """
-        print(f"🔍 扫描目录: {self.data_dir}")
+        print(f"[SCAN] 扫描目录: {self.data_dir}")
         self._log(f"开始扫描目录: {self.data_dir}")
 
         # 查找所有.his文件
@@ -121,7 +121,7 @@ class BatchHisProcessor:
         his_files = glob.glob(his_pattern)
 
         if not his_files:
-            print(f"❌ 在目录 {self.data_dir} 中未找到任何.his文件")
+            print(f"[ERROR] 在目录 {self.data_dir} 中未找到任何.his文件")
             self._log("错误: 未找到.his文件")
             return []
 
@@ -135,7 +135,7 @@ class BatchHisProcessor:
             if idx_file.exists():
                 all_valid_files.append((file_prefix, str(his_path)))
             else:
-                print(f"⚠️  跳过 {file_prefix}: 缺少对应的.idx文件")
+                print(f"[WARN] 跳过 {file_prefix}: 缺少对应的.idx文件")
                 self._log(f"警告: {file_prefix} 缺少.idx文件,已跳过")
                 self.stats['skipped_files'] += 1
 
@@ -148,21 +148,21 @@ class BatchHisProcessor:
                 if file_prefix in self.target_files:
                     filtered_files.append((file_prefix, his_path))
                     found_files.add(file_prefix)
-                    print(f"✅ 找到指定文件: {file_prefix}")
+                    print(f"[OK] 找到指定文件: {file_prefix}")
 
             # 检查是否有指定的文件未找到
             missing_files = set(self.target_files) - found_files
             if missing_files:
-                print(f"⚠️  未找到指定文件: {', '.join(missing_files)}")
+                print(f"[WARN] 未找到指定文件: {', '.join(missing_files)}")
                 self._log(f"警告: 未找到指定文件: {', '.join(missing_files)}")
 
             valid_files = filtered_files
         else:
             valid_files = all_valid_files
             for file_prefix, _ in valid_files:
-                print(f"✅ 发现有效文件对: {file_prefix}")
+                print(f"[OK] 发现有效文件对: {file_prefix}")
 
-        print(f"📊 将处理 {len(valid_files)} 个有效文件对, {self.stats['skipped_files']} 个文件被跳过")
+        print(f"[STATS] 将处理 {len(valid_files)} 个有效文件对, {self.stats['skipped_files']} 个文件被跳过")
         self._log(f"文件发现完成: {len(valid_files)} 个有效文件对")
 
         return valid_files
@@ -174,14 +174,14 @@ class BatchHisProcessor:
         Returns:
             List[str]: 文件前缀列表
         """
-        print(f"🔍 扫描目录: {self.data_dir}")
+        print(f"[SCAN] 扫描目录: {self.data_dir}")
 
         # 查找所有.his文件
         his_pattern = str(self.data_dir / "*.his")
         his_files = glob.glob(his_pattern)
 
         if not his_files:
-            print(f"❌ 在目录 {self.data_dir} 中未找到任何.his文件")
+            print(f"[ERROR] 在目录 {self.data_dir} 中未找到任何.his文件")
             return []
 
         # 验证每个HIS文件是否有对应的IDX文件
@@ -198,16 +198,16 @@ class BatchHisProcessor:
             else:
                 missing_idx_files.append(file_prefix)
 
-        print(f"\n📋 发现 {len(valid_files)} 个有效文件对:")
+        print(f"\n[INFO] 发现 {len(valid_files)} 个有效文件对:")
         print("=" * 60)
 
         for i, file_prefix in enumerate(sorted(valid_files), 1):
             print(f"  {i:3d}. {file_prefix}")
 
         if missing_idx_files:
-            print(f"\n⚠️  {len(missing_idx_files)} 个文件缺少对应的.idx文件:")
+            print(f"\n[WARN] {len(missing_idx_files)} 个文件缺少对应的.idx文件:")
             for file_prefix in sorted(missing_idx_files):
-                print(f"     ❌ {file_prefix}")
+                print(f"     [ERROR] {file_prefix}")
 
         print("=" * 60)
         print(f"总计: {len(valid_files)} 个有效文件, {len(missing_idx_files)} 个无效文件")
@@ -225,7 +225,7 @@ class BatchHisProcessor:
         Returns:
             bool: 处理是否成功
         """
-        print(f"\n🚀 处理文件: {file_prefix} (尝试 {attempt}/{self.retry + 1})")
+        print(f"\n[START] 处理文件: {file_prefix} (尝试 {attempt}/{self.retry + 1})")
         self._log(f"开始处理文件: {file_prefix} (尝试 {attempt})")
 
         # 构建命令行
@@ -266,24 +266,24 @@ class BatchHisProcessor:
             if result.stderr:
                 self._log(f"--- {file_prefix} 错误输出 ---")
                 self._log(result.stderr)
-                print(f"❌ 错误输出: {result.stderr}")
+                print(f"[ERROR] 错误输出: {result.stderr}")
 
             # 检查返回码
             if result.returncode == 0:
-                print(f"✅ {file_prefix} 处理成功 (耗时: {elapsed:.1f}秒)")
+                print(f"[OK] {file_prefix} 处理成功 (耗时: {elapsed:.1f}秒)")
                 self._log(f"文件 {file_prefix} 处理成功, 耗时: {elapsed:.1f}秒")
                 return True
             else:
-                print(f"❌ {file_prefix} 处理失败 (返回码: {result.returncode})")
+                print(f"[ERROR] {file_prefix} 处理失败 (返回码: {result.returncode})")
                 self._log(f"文件 {file_prefix} 处理失败, 返回码: {result.returncode}")
                 return False
 
         except subprocess.TimeoutExpired:
-            print(f"❌ {file_prefix} 处理超时 (超过1小时)")
+            print(f"[ERROR] {file_prefix} 处理超时 (超过1小时)")
             self._log(f"文件 {file_prefix} 处理超时")
             return False
         except Exception as e:
-            print(f"❌ {file_prefix} 处理异常: {e}")
+            print(f"[ERROR] {file_prefix} 处理异常: {e}")
             self._log(f"文件 {file_prefix} 处理异常: {e}")
             return False
 
@@ -302,10 +302,10 @@ class BatchHisProcessor:
         self.stats['total_files'] = len(file_pairs)
         self.stats['start_time'] = time.time()
 
-        print(f"\n📋 开始批量处理 {len(file_pairs)} 个文件")
-        print(f"🔧 插入方法: {self.method.upper()}")
-        print(f"🗄️  目标数据库: {self.host}:{self.port}/{self.database}")
-        print(f"📝 日志文件: {self.log_file}")
+        print(f"\n 开始批量处理 {len(file_pairs)} 个文件")
+        print(f" 插入方法: {self.method.upper()}")
+        print(f" 目标数据库: {self.host}:{self.port}/{self.database}")
+        print(f" 日志文件: {self.log_file}")
 
         if self.target_files:
             print(f"📁 指定文件: {', '.join(self.target_files)}")
@@ -331,7 +331,7 @@ class BatchHisProcessor:
 
         # 逐个处理文件
         for i, (file_prefix, his_path) in enumerate(file_pairs, 1):
-            print(f"\n📂 [{i}/{len(file_pairs)}] 当前处理: {file_prefix}")
+            print(f"\n[FOLDER] [{i}/{len(file_pairs)}] 当前处理: {file_prefix}")
 
             success = False
             for attempt in range(1, self.retry + 2):  # 原始尝试 + 重试次数
@@ -339,7 +339,7 @@ class BatchHisProcessor:
                 if success:
                     break
                 elif attempt <= self.retry:
-                    print(f"🔄 准备重试 {file_prefix} (剩余重试次数: {self.retry + 1 - attempt})")
+                    print(f"[RETRY] 准备重试 {file_prefix} (剩余重试次数: {self.retry + 1 - attempt})")
                     time.sleep(2)  # 重试前等待2秒
 
             # 更新统计
@@ -365,8 +365,8 @@ class BatchHisProcessor:
 
         if total > 0:
             percentage = (processed / total) * 100
-            print(f"📊 进度: [{processed}/{total}] {percentage:.1f}% | "
-                  f"✅{successful} ❌{failed}")
+            print(f"[STATS] 进度: [{processed}/{total}] {percentage:.1f}% | "
+                  f"OK:{successful} ERROR:{failed}")
 
     def _print_final_stats(self):
         """打印最终统计信息"""
@@ -374,19 +374,19 @@ class BatchHisProcessor:
         total_elapsed = end_time - self.stats['start_time']
 
         print("\n" + "=" * 60)
-        print("🎉 批量处理完成统计")
+        print("[SUCCESS] 批量处理完成统计")
         print("=" * 60)
-        print(f"⏱️  总耗时: {total_elapsed:.1f} 秒 ({total_elapsed / 60:.1f} 分钟)")
-        print(f"📁 总文件数: {self.stats['total_files']}")
-        print(f"✅ 成功处理: {self.stats['successful_files']}")
-        print(f"❌ 失败处理: {self.stats['failed_files']}")
-        print(f"⏭️  跳过文件: {self.stats['skipped_files']}")
-        print(f"📈 成功率: {(self.stats['successful_files'] / max(1, self.stats['total_files']) * 100):.1f}%")
-        print(f"📝 详细日志: {self.log_file}")
+        print(f"[TIME] 总耗时: {total_elapsed:.1f} 秒 ({total_elapsed / 60:.1f} 分钟)")
+        print(f"[FILE] 总文件数: {self.stats['total_files']}")
+        print(f"[OK] 成功处理: {self.stats['successful_files']}")
+        print(f"[ERROR] 失败处理: {self.stats['failed_files']}")
+        print(f"[SKIP] 跳过文件: {self.stats['skipped_files']}")
+        print(f"[RATE] 成功率: {(self.stats['successful_files'] / max(1, self.stats['total_files']) * 100):.1f}%")
+        print(f"[LOG] 详细日志: {self.log_file}")
 
         if total_elapsed > 0:
             files_per_min = (self.stats['processed_files'] / total_elapsed) * 60
-            print(f"⚡ 处理速度: {files_per_min:.1f} 文件/分钟")
+            print(f"[SPEED] 处理速度: {files_per_min:.1f} 文件/分钟")
 
         print("=" * 60)
 
@@ -450,20 +450,20 @@ def main():
         # 检查his_to_clickhouse.py是否存在
         script_path = Path(__file__).parent / "his_to_clickhouse.py"
         if not script_path.exists():
-            print("❌ 错误: 找不到his_to_clickhouse.py文件")
+            print("[ERROR] 错误: 找不到his_to_clickhouse.py文件")
             print(f"   请确保 {script_path} 存在")
             sys.exit(1)
 
         # 检查数据目录是否存在
         if not Path(args.dir).exists():
-            print(f"❌ 错误: 数据目录不存在: {args.dir}")
+            print(f"[ERROR] 错误: 数据目录不存在: {args.dir}")
             sys.exit(1)
 
         # 处理--points参数
         target_points = None
         if args.points:
             target_points = [p.strip() for p in args.points.split(',') if p.strip()]
-            print(f"🎯 用户指定了 {len(target_points)} 个数据点")
+            print(f"[TARGET] 用户指定了 {len(target_points)} 个数据点")
 
         # 创建批量处理器
         processor = BatchHisProcessor(
@@ -480,24 +480,24 @@ def main():
 
         # 如果只是列出文件
         if args.listfiles:
-            print("🚀 === HIS文件列表 ===")
+            print("[START] === HIS文件列表 ===")
             processor.list_all_files()
             return        # 开始批量处理
-        print("🚀 === HIS文件批量处理器 ===")
+        print("[START] === HIS文件批量处理器 ===")
         success = processor.process_all_files()
 
         if success:
-            print("\n🎉 所有文件处理成功！")
+            print("\n[SUCCESS] 所有文件处理成功！")
             sys.exit(0)
         else:
-            print("\n⚠️  部分文件处理失败，请检查日志文件")
+            print("\n[WARN] 部分文件处理失败，请检查日志文件")
             sys.exit(1)
 
     except KeyboardInterrupt:
-        print("\n⏹️  用户中断批量处理")
+        print("\n[STOP] 用户中断批量处理")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ 批量处理过程中出错: {e}")
+        print(f"\n[ERROR] 批量处理过程中出错: {e}")
         sys.exit(1)
 
 
