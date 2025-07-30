@@ -28,24 +28,42 @@ HIS文件系统包含两个关键文件:
 --------
 命令行模式:
 
-    --file/-f  : 可选, 文件名(不含扩展名)
-                格式:YYYYMMDDHH(默认:2025070222)
+    --file/-f     : 可选, 文件名(不含扩展名)
+                   格式:YYYYMMDDHH(默认:2025070222)
 
-    --point/-p : 可选, 数据点名称
-                示例:"20MCS-UNITMW", "SYS_XCU001_Memory"
-                省略时:显示前20个可用数据点供选择
+    --point/-p    : 可选, 单个数据点名称
+                   示例:"20MCS-UNITMW", "SYS_XCU001_Memory"
 
-    --dir/-d   : 可选, 数据文件目录 (默认:"./his-data")
+    --points      : 可选, 多个数据点名称(用逗号分隔)
+                   示例:"20MCS-UNITMW,SYS_XCU001_Memory,SYS_XCU101_AN_OFF"
+
+    --allpoints   : 可选, 处理所有可用数据点
+
+    --excel       : 可选, 导出Excel文件(默认不导出)
+
+    --dir/-d      : 可选, 数据文件目录 (默认:"./his-data")
 
     使用示例:
-    1. 使用默认参数:
-       python parse_his_data.py
-
-    2. 查看可用数据点:
+    1. 查看可用数据点:
        python parse_his_data.py --file 2025070222
 
-    3. 解析指定数据点&数据目录:
-       python parse_his_data.py --file 2025070222 --point "20MCS-UNITMW" --dir "/data/his"
+    2. 解析单个数据点(不导出Excel):
+       python parse_his_data.py --file 2025070222 --point "20MCS-UNITMW"
+
+    3. 解析单个数据点并导出Excel:
+       python parse_his_data.py --file 2025070222 --point "20MCS-UNITMW" --excel
+
+    4. 解析多个数据点并导出Excel:
+       python parse_his_data.py --file 2025070222 --points "20MCS-UNITMW,SYS_XCU001_Memory" --excel
+
+    5. 解析所有数据点(不导出Excel):
+       python parse_his_data.py --file 2025070222 --allpoints
+
+    6. 解析所有数据点并导出Excel:
+       python parse_his_data.py --file 2025070222 --allpoints --excel
+
+    7. 指定数据目录:
+       python parse_his_data.py --file 2025070222 --point "20MCS-UNITMW" --dir "/data/his" --excel
 
 输出格式:
 --------
@@ -147,6 +165,11 @@ class HisDataParser:
         self._idx_cache_filepath = None  # 当前缓存的IDX文件路径
         self._idx_parsed = False  # IDX文件是否已解析并缓存
         self._point_info_cache = {}  # 数据点信息缓存
+
+        # HIS文件缓存优化
+        self._his_cache_filepath = None  # 当前缓存的HIS文件路径
+        self._his_binary_data = None  # HIS文件二进制数据缓存
+        self._his_loaded = False  # HIS文件是否已加载到内存
 
     def idx_info_parser(self, idx_filepath: str) -> Dict[int, str]:
         """
@@ -337,6 +360,60 @@ class HisDataParser:
             # 清空缓存状态
             self._idx_parsed = False
             self._idx_cache_filepath = None
+            return False
+
+    def load_his_file_to_cache(self, his_filepath: str) -> bool:
+        """
+        HIS文件缓存加载方法 - 性能优化核心
+        ==================================
+
+        功能说明:
+        --------
+        将HIS文件一次性加载到内存中进行缓, 避免重复的磁盘I/O操作。
+        这是解决性能瓶颈的关键优化, 将文件读取次数从N次(数据点数量)减少到1次。
+
+        Args:
+            his_filepath: HIS文件的完整路径
+
+        Returns:
+            bool: 加载成功返回True, 失败返回False
+        """
+        # 缓存命中检查
+        if (self._his_loaded and self._his_cache_filepath == his_filepath
+                and self._his_binary_data is not None):
+            print("✅ 使用HIS文件缓存数据")
+            return True
+
+        print(f"📖 正在加载HIS文件到内存: {his_filepath}")
+
+        try:
+            # 检查文件是否存在
+            if not os.path.exists(his_filepath):
+                print(f"❌ HIS文件不存在: {his_filepath}")
+                return False
+
+            # 获取文件大小信息
+            file_size = os.path.getsize(his_filepath)
+            file_size_mb = file_size / (1024 * 1024)
+            print(f"📊 HIS文件大小: {file_size_mb:.1f} MB")
+
+            # 一次性读取整个文件到内存
+            with open(his_filepath, 'rb') as f:
+                self._his_binary_data = f.read()
+
+            # 更新缓存状态
+            self._his_cache_filepath = his_filepath
+            self._his_loaded = True
+
+            print(f"✅ HIS文件已缓存到内存 ({file_size_mb:.1f} MB)")
+            return True
+
+        except Exception as e:
+            print(f"❌ 加载HIS文件失败: {e}")
+            # 清空缓存状态
+            self._his_loaded = False
+            self._his_cache_filepath = None
+            self._his_binary_data = None
             return False
 
     def to_unix_timestamp(self, dt: datetime) -> int:
@@ -537,9 +614,13 @@ class HisDataParser:
             with open(idx_filename, 'rb') as f:
                 idx_binary_data = f.read()
 
-            # 将his文件读到内存
-            with open(his_filename, 'rb') as f:
-                his_binary_data = f.read()
+            # 加载HIS文件到缓存 - 性能优化关键
+            if not self.load_his_file_to_cache(his_filename):
+                print(f"❌ 无法加载HIS文件: {his_filename}")
+                return []
+
+            # 使用缓存的HIS数据
+            his_binary_data = self._his_binary_data
 
             # 解析时间
             try:
@@ -611,10 +692,17 @@ class HisDataParser:
         return self._point_info_cache.copy()
 
     def clear_cache(self):
+        """清空所有缓存数据"""
         self._point_info_cache.clear()
         self._idx_parsed = False
         self._idx_cache_filepath = None
-        print("✅ 已清空所有缓存")
+
+        # 清空HIS文件缓存
+        self._his_loaded = False
+        self._his_cache_filepath = None
+        self._his_binary_data = None
+
+        print("✅ 已清空所有缓存 (包括IDX和HIS文件缓存)")
 
     def export_to_excel(self, data_points: List[PointDataStruct], file_title: str, point_name: str) -> str:
         """
@@ -745,6 +833,13 @@ def main():
     提供完整的命令行接口, 支持自定义参数的批量数据处理。
     当没有指定文件参数时, 使用默认值。
 
+    新增功能:
+    --------
+    - --allpoints: 处理所有数据点
+    - --points: 指定多个数据点 (用逗号分隔)
+    - --excel: 是否导出Excel文件 (默认不导出)
+    - --point: 单个数据点名称 (兼容原版本)
+
     使用方法: 见文件开头
     """
     import argparse
@@ -753,7 +848,13 @@ def main():
     parser_cmd.add_argument('--file', '-f', default='2025070222',
                             help='文件名(不含扩展名), 默认: 2025070222')
     parser_cmd.add_argument('--point', '-p',
-                            help='数据点名称(如不指定则显示可用数据点列表)')
+                            help='单个数据点名称(兼容旧版本)')
+    parser_cmd.add_argument('--points',
+                            help='多个数据点名称，用逗号分隔，如: "20MCS-UNITMW,SYS_XCU001_Memory"')
+    parser_cmd.add_argument('--allpoints', action='store_true',
+                            help='处理所有可用数据点')
+    parser_cmd.add_argument('--excel', action='store_true',
+                            help='导出Excel文件 (默认不导出)')
     parser_cmd.add_argument('--dir', '-d', default='./his-data',
                             help='数据文件目录, 默认: ./his-data')
 
@@ -765,31 +866,111 @@ def main():
     print("=== HIS历史数据解析器 ===")
     print(f"目标文件: {args.file}")
     print(f"数据目录: {args.dir}")
+    print(f"导出Excel: {'是' if args.excel else '否'}")
 
-    # 解析指定数据点的所有时序数据
-    if not args.point:
-        # 如果没有指定数据点, 先显示可用的数据点
-        parser.idx_info_parser(os.path.join(args.dir, f"{args.file}.idx"))
+    # 先解析IDX文件获取所有可用数据点
+    idx_filepath = os.path.join(args.dir, f"{args.file}.idx")
+    if not parser.idx_info_parser(idx_filepath):
+        print("❌ 无法解析IDX文件")
+        return
+
+    # 确定要处理的数据点列表
+    target_points = []
+
+    if args.allpoints:
+        # 处理所有数据点
+        target_points = list(parser._point_info_cache.keys())
+        print(f"📋 处理所有数据点: {len(target_points)} 个")
+    elif args.points:
+        # 处理多个指定数据点
+        requested_points = [p.strip() for p in args.points.split(',')]
+        available_points = set(parser._point_info_cache.keys())
+
+        for point in requested_points:
+            if point in available_points:
+                target_points.append(point)
+                print(f"✅ 找到数据点: {point}")
+            else:
+                print(f"⚠️ 数据点不存在: {point}")
+
+        if not target_points:
+            print("❌ 没有找到任何有效的数据点")
+            return
+    elif args.point:
+        # 处理单个数据点 (兼容旧版本)
+        if args.point in parser._point_info_cache:
+            target_points = [args.point]
+            print(f"📍 处理单个数据点: {args.point}")
+        else:
+            print(f"❌ 数据点不存在: {args.point}")
+            return
+    else:
+        # 没有指定数据点，显示可用列表
         if parser._point_info_cache:
             available_points = list(parser._point_info_cache.keys())[:20]
             print("可用数据点(前20个):")
             for i, point in enumerate(available_points):
-                print(f"  {i + 1}. {point}")
-            print("\n请使用 --point 参数指定数据点名称")
+                point_info = parser._point_info_cache[point]
+                point_type = 'AX' if point_info.point_type == 0 else 'DX'
+                print(f"  {i + 1:2d}. {point} [{point_type}]")
+
+            print(f"\n总共 {len(parser._point_info_cache)} 个数据点")
+            print("\n使用方法:")
+            print("  --point <点名>        : 处理单个数据点")
+            print("  --points <点1,点2>    : 处理多个数据点")
+            print("  --allpoints          : 处理所有数据点")
+            print("  --excel             : 导出Excel文件")
         else:
             print("无法获取数据点列表")
         return
 
-    print(f"数据点: {args.point}")
-    # 使用缓存优化的解析方法
-    point_all_data = parser.read_single_point_all_blocks(args.dir, args.file, args.point)
+    # 处理数据点
+    print(f"\n🚀 开始处理 {len(target_points)} 个数据点...")
+    successful_exports = 0
+    failed_points = []
 
-    if point_all_data:
-        output_file = parser.export_to_excel(point_all_data, args.file, args.point)
-        if output_file:
-            print(f"导出完成:{output_file}")
-    else:
-        print("未解析到任何数据")
+    for i, point_name in enumerate(target_points, 1):
+        print(f"\n[{i}/{len(target_points)}] 处理数据点: {point_name}")
+
+        try:
+            # 解析数据点
+            point_all_data = parser.read_single_point_all_blocks(args.dir, args.file, point_name)
+
+            if point_all_data:
+                print(f"✅ 成功解析 {len(point_all_data)} 个数据点")
+
+                # 根据excel参数决定是否导出
+                if args.excel:
+                    output_file = parser.export_to_excel(point_all_data, args.file, point_name)
+                    if output_file:
+                        print(f"📊 Excel导出完成: {output_file}")
+                        successful_exports += 1
+                    else:
+                        print(f"❌ Excel导出失败: {point_name}")
+                        failed_points.append(point_name)
+                else:
+                    print("📋 数据解析完成(未导出Excel)")
+                    successful_exports += 1
+            else:
+                print(f"❌ 解析失败: {point_name}")
+                failed_points.append(point_name)
+
+        except Exception as e:
+            print(f"❌ 处理失败: {point_name} - {e}")
+            failed_points.append(point_name)
+
+    # 总结报告
+    print(f"   总数据点: {len(target_points)}")
+    print(f"   成功处理: {successful_exports}")
+    print(f"   失败数量: {len(failed_points)}")
+
+    if failed_points:
+        print(f"   失败列表: {', '.join(failed_points)}")
+
+    if args.excel:
+        print(f"   Excel文件: {'已导出' if successful_exports > 0 else '未导出'}")
+
+    print("✅ 批处理完成")
 
 
 if __name__ == "__main__":

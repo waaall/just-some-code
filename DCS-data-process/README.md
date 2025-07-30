@@ -6,6 +6,28 @@
 
 本项目提供完整的电力控制系统(DCS)历史数据处理方案，包括HIS/IDX文件格式逆向解析、数据提取与数据库导入功能。
 
+## 环境要求
+
+### Python版本
+
+- Python 3.7+
+
+### 第三方依赖库
+
+```bash
+# 方式1: 使用requirements.txt一键安装
+pip install -r requirements.txt
+
+# 方式2: 手动安装核心依赖
+pip install requests pandas numpy openpyxl
+```
+
+**核心依赖说明:**
+
+- `requests` - HTTP请求库，用于ClickHouse数据库连接
+- `pandas` - 数据分析库，用于Excel文件生成和数据处理
+- `numpy` - 科学计算库，用于数值数据处理
+- `openpyxl` - Excel文件读写引擎，支持xlsx格式
 
 ## 数据流程
 
@@ -19,20 +41,16 @@ HIS/IDX文件 → 解析器 → 数据提取 → Excel导出/数据库导入
 
 ### 数据解析模块
 
-
 - **` analys_idx_file.py`** - IDX文件结构深度分析器
-
 - 详细解析IDX文件头部、数据点定义、时间索引
 - 生成完整的文件结构报告
 - 支持TXT和Excel格式输出
-
 - **`parse_his_data.py`** - HIS历史数据文件解析器(核心基础类)
 
   - 解析IDX索引文件获取数据点定义和时间索引
   - 解析HIS文件提取压缩时序数据
   - 支持Excel格式数据导出
   - 提供单点或批量数据处理
-
 
 ### 数据库集成模块
 
@@ -48,6 +66,14 @@ HIS/IDX文件 → 解析器 → 数据提取 → Excel导出/数据库导入
   - 检查数据分区、索引和存储统计
   - 生成CSV格式的结构报告
 
+### 批量处理模块
+
+- **`batch_his_files_to_ck.py`** - HIS文件批量处理器
+  - 自动发现目录下所有HIS/IDX文件对
+  - 支持指定特定文件和数据点进行处理
+  - 串行调用his_to_clickhouse.py批量处理
+  - 完整的日志记录和进度监控
+  - 支持失败重试和错误处理
 
 ## 快速使用
 
@@ -60,9 +86,23 @@ python parse_his_data.py --file 2025070222 --point SYS_XCU001_Memory
 
 
 # 检查数据库结构
-python clickhouse_db_inspector.py --host 127.0.0.1
+python clickhouse_db_inspector.py --host 192.168.50.30
 
-# 导入ClickHouse数据库  
+# 单文件导入ClickHouse数据库  
 python his_to_clickhouse.py --points "point1,point2" --method values
-```
 
+# 批量处理多个HIS文件
+python batch_his_files_to_ck.py --dir ./his-data --method values
+
+# 列出所有可用文件
+python batch_his_files_to_ck.py --listfiles
+
+# 处理指定文件
+python batch_his_files_to_ck.py --files 2025070222 2025070221
+
+# 处理指定数据点
+python batch_his_files_to_ck.py --points "SYS_XCU001_Memory,SYS_XCU101_AN_OFF"
+
+# 处理指定文件的指定数据点
+python batch_his_files_to_ck.py --files 2025070222 --points "point1,point2"
+```
