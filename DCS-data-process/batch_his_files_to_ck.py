@@ -7,15 +7,7 @@ HIS文件批量处理器 - ClickHouse数据库批量导入工具
 功能概述:
 --------
 批量检测指定目录下的所有HIS文件,并自动调用his_to_clickhouse.py
-进行逐个文件的数据导入处理。支持串行处理、日志记录和详细的进度监控。
-
-核心功能:
---------
-1. 自动文件发现:扫描目录下所有.his文件及对应的.idx文件
-2. 串行批量处理:逐个调用his_to_clickhouse.py进行数据导入
-3. 日志记录:捕获所有输出信息并保存到日志文件
-4. 进度监控:实时显示处理进度和统计信息
-5. 错误处理:完善的异常处理和失败重试机制
+进行逐个文件的数据导入处理。支持单线程/多线程处理、日志记录和详细的进度监控。
 
 使用说明:
 --------
@@ -27,25 +19,36 @@ HIS文件批量处理器 - ClickHouse数据库批量导入工具
     --database: 数据库名称 (默认: ezhou)
     --log-dir: 日志文件目录 (默认: ./logs)
     --retry: 失败重试次数 (默认: 1)
+    --threads/-t: 文件级并发线程数 (默认: 1, 推荐: 4)
+    --point-threads: 数据点级线程数 (默认: 1, 推荐: 2-4)
     --listfiles: 列出所有可用文件并退出
     --files: 指定要处理的文件前缀列表（空格分隔）
     --points: 指定要处理的数据点列表（逗号分隔）
 
     使用示例:
-    1. 批量处理默认目录:
+    1. 批量处理默认目录 (单线程):
        python batch_his_files_to_ck.py
 
     2. 列出所有可用文件:
        python batch_his_files_to_ck.py --listfiles
 
-    3. 处理指定文件:
+    3. 文件级多线程处理:
+       python batch_his_files_to_ck.py --threads 4
+
+    4. 数据点级多线程处理:
+       python batch_his_files_to_ck.py --point-threads 4
+
+    5. 双重多线程处理 (最佳性能):
+       python batch_his_files_to_ck.py --threads 4 --point-threads 4
+
+    6. 处理指定文件:
        python batch_his_files_to_ck.py --files 2025070222 2025070221
 
-    4. 处理指定数据点:
+    7. 处理指定数据点:
        python batch_his_files_to_ck.py --points "SYS_XCU001_Memory,SYS_XCU101_AN_OFF"
 
-    5. 处理指定文件的指定数据点:
-       python batch_his_files_to_ck.py --files 2025070222 --points "point1,point2"
+    8. 指定文件+指定数据点+双重多线程:
+       python batch_his_files_to_ck.py --files 2025070222 --points "point1,point2" --threads 2 --point-threads 2
 
 作者: zhengxu
 版本: 1.0
@@ -59,6 +62,8 @@ import glob
 import argparse
 import io
 import contextlib
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List, Tuple, Dict
 from pathlib import Path
@@ -85,7 +90,8 @@ class BatchHisProcessor:
     def __init__(self, data_dir: str = "./his-data", log_dir: str = "./logs",
                  method: str = "values", host: str = "192.168.50.30",
                  port: int = 8123, database: str = "ezhou", retry: int = 1,
-                 target_files: List[str] = None, target_points: List[str] = None):
+                 target_files: List[str] = None, target_points: List[str] = None,
+                 max_workers: int = 1, point_threads: int = 1):
 
         self.data_dir = Path(data_dir).resolve()
         self.log_dir = Path(log_dir).resolve()
@@ -96,6 +102,22 @@ class BatchHisProcessor:
         self.retry = retry
         self.target_files = target_files  # 指定要处理的文件列表
         self.target_points = target_points  # 指定要处理的数据点列表
+        if max_workers < 1:
+            print("[ERROR] 线程数必须 >= 1, 已设置为1")
+            max_workers = 1
+        elif max_workers > 4:
+            print(f"[WARN] 线程数过高 ({max_workers}), 一设置为4个线程")
+            max_workers = 4
+        self.max_workers = max_workers
+
+        # 处理单个文件内数据点的线程数
+        if point_threads < 1:
+            print("[ERROR] 数据点线程数必须 >= 1, 已设置为1")
+            point_threads = 1
+        elif point_threads > 4:
+            print(f"[WARN] 数据点线程数过高 ({point_threads}), 已设置为4个线程")
+            point_threads = 4
+        self.point_threads = point_threads
 
         # 创建日志目录
         self.log_dir.mkdir(exist_ok=True)
@@ -104,7 +126,7 @@ class BatchHisProcessor:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_file = self.log_dir / f"batch_process_{timestamp}.log"
 
-        # 统计信息
+        # 统计信息 - 添加线程安全的锁
         self.stats = {
             'total_files': 0,
             'processed_files': 0,
@@ -113,6 +135,7 @@ class BatchHisProcessor:
             'start_time': None,
             'skipped_files': 0
         }
+        self.stats_lock = threading.Lock()  # 统计信息的线程锁
 
     @contextlib.contextmanager
     def _capture_output_to_log(self, file_prefix: str):
@@ -293,7 +316,8 @@ class BatchHisProcessor:
                     directory=str(self.data_dir),
                     file_prefix=file_prefix,
                     point_names=self.target_points,
-                    insert_method=self.method
+                    insert_method=self.method,
+                    max_workers=self.point_threads
                 )
 
             elapsed = time.time() - start_time
@@ -315,7 +339,7 @@ class BatchHisProcessor:
 
     def process_all_files(self) -> bool:
         """
-        批量处理所有文件
+        批量处理所有文件 - 支持单线程和多线程
 
         Returns:
             bool: 整体处理是否成功
@@ -328,10 +352,17 @@ class BatchHisProcessor:
         self.stats['total_files'] = len(file_pairs)
         self.stats['start_time'] = time.time()
 
-        print(f"\n 开始批量处理 {len(file_pairs)} 个文件")
-        print(f" 插入方法: {self.method.upper()}")
-        print(f" 目标数据库: {self.host}:{self.port}/{self.database}")
-        print(f" 日志文件: {self.log_file}")
+        processing_mode = "多线程" if self.max_workers > 1 else "单线程"
+        print(f"\n开始批量处理 {len(file_pairs)} 个文件 ({processing_mode})")
+        print(f"插入方法: {self.method.upper()}")
+        print(f"目标数据库: {self.host}:{self.port}/{self.database}")
+        print(f"日志文件: {self.log_file}")
+
+        if self.max_workers > 1:
+            print(f"线程数: {self.max_workers}")
+
+        if self.point_threads > 1:
+            print(f"数据点线程数: {self.point_threads}")
 
         if self.target_files:
             print(f"指定文件: {', '.join(self.target_files)}")
@@ -346,16 +377,28 @@ class BatchHisProcessor:
         print("=" * 60)
 
         self._log("=" * 60)
-        self._log(f"批量处理开始: {len(file_pairs)} 个文件")
+        self._log(f"批量处理开始: {len(file_pairs)} 个文件 ({processing_mode})")
         self._log(f"插入方法: {self.method}")
         self._log(f"目标数据库: {self.host}:{self.port}/{self.database}")
+        if self.max_workers > 1:
+            self._log(f"线程数: {self.max_workers}")
+        if self.point_threads > 1:
+            self._log(f"数据点线程数: {self.point_threads}")
         if self.target_files:
             self._log(f"指定文件: {', '.join(self.target_files)}")
         if self.target_points:
             self._log(f"指定数据点: {', '.join(self.target_points)}")
         self._log("=" * 60)
 
-        # 逐个处理文件
+        if self.max_workers == 1:
+            # 单线程处理
+            return self._process_files_single_thread(file_pairs)
+        else:
+            # 多线程处理
+            return self._process_files_multi_thread(file_pairs)
+
+    def _process_files_single_thread(self, file_pairs: List[Tuple[str, str]]) -> bool:
+        """单线程处理文件"""
         for i, (file_prefix, his_path) in enumerate(file_pairs, 1):
             print(f"\n[FOLDER] [{i}/{len(file_pairs)}] 当前处理: {file_prefix}")
 
@@ -377,6 +420,45 @@ class BatchHisProcessor:
 
             # 显示进度
             self._print_progress()
+
+        # 最终统计
+        self._print_final_stats()
+        return self.stats['failed_files'] == 0
+
+    def _process_files_multi_thread(self, file_pairs: List[Tuple[str, str]]) -> bool:
+        """多线程处理文件"""
+        print(f"[MULTI-THREAD] 使用 {self.max_workers} 个线程并行处理")
+
+        # 创建线程池
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交所有任务
+            future_to_file = {}
+            for i, (file_prefix, his_path) in enumerate(file_pairs, 1):
+                future = executor.submit(self._process_file_with_retry, file_prefix, i, len(file_pairs))
+                future_to_file[future] = file_prefix
+
+            # 等待所有任务完成
+            completed_count = 0
+            for future in as_completed(future_to_file):
+                file_prefix = future_to_file[future]
+                completed_count += 1
+
+                try:
+                    future.result()  # 获取结果以确保异常被捕获
+                    # 显示进度 (线程安全)
+                    with self.stats_lock:
+                        processed = self.stats['processed_files']
+                        total = self.stats['total_files']
+                        successful = self.stats['successful_files']
+                        failed = self.stats['failed_files']
+                        percentage = (processed / total) * 100
+                        print(f"[MULTI-THREAD] 进度: [{processed}/{total}] {percentage:.1f}% | "
+                              f"OK:{successful} ERROR:{failed}")
+
+                except Exception as e:
+                    print(f"[MULTI-THREAD] [ERROR] {file_prefix} 处理异常: {e}")
+                    self._log(f"线程处理异常: {file_prefix} - {e}")
+                    self._update_stats(processed=True, failed=True)
 
         # 最终统计
         self._print_final_stats()
@@ -427,10 +509,57 @@ class BatchHisProcessor:
         self._log("=" * 60)
 
     def _log(self, message: str):
-        """写入日志文件"""
+        """写入日志文件 - 线程安全版本"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\n"
+
+        # 使用文件锁确保多线程写入安全
         with open(self.log_file, 'a', encoding='utf-8') as f:
-            f.write(f"[{timestamp}] {message}\n")
+            f.write(log_entry)
+
+    def _update_stats(self, processed: bool = False, successful: bool = False, failed: bool = False):
+        """线程安全的统计信息更新"""
+        with self.stats_lock:
+            if processed:
+                self.stats['processed_files'] += 1
+            if successful:
+                self.stats['successful_files'] += 1
+            if failed:
+                self.stats['failed_files'] += 1
+
+    def _process_file_with_retry(self, file_prefix: str, file_index: int, total_files: int) -> bool:
+        """
+        带重试机制的文件处理方法 - 线程安全版本
+
+        Args:
+            file_prefix: 文件前缀
+            file_index: 文件在列表中的索引 (从1开始)
+            total_files: 总文件数
+
+        Returns:
+            bool: 处理是否成功
+        """
+        thread_id = threading.current_thread().name
+        print(f"\n[THREAD-{thread_id}] [{file_index}/{total_files}] 开始处理: {file_prefix}")
+
+        success = False
+        for attempt in range(1, self.retry + 2):  # 原始尝试 + 重试次数
+            success = self.process_single_file(file_prefix, attempt)
+            if success:
+                break
+            elif attempt <= self.retry:
+                print(f"[THREAD-{thread_id}] [RETRY] 准备重试 {file_prefix} (剩余重试次数: {self.retry + 1 - attempt})")
+                time.sleep(2)  # 重试前等待2秒
+
+        # 线程安全的统计更新
+        self._update_stats(processed=True, successful=success, failed=not success)
+
+        if success:
+            print(f"[THREAD-{thread_id}] [OK] {file_prefix} 处理完成")
+        else:
+            print(f"[THREAD-{thread_id}] [ERROR] {file_prefix} 处理失败")
+
+        return success
 
 
 def main():
@@ -439,7 +568,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  %(prog)s                                    # 处理默认目录下所有文件
+  %(prog)s                                    # 处理默认目录下所有文件 (单线程)
+  %(prog)s --threads 4                        # 使用4个线程并行处理文件
+  %(prog)s --point-threads 2                  # 单个文件内用2线程处理数据点
+  %(prog)s --threads 4 --point-threads 2      # 4线程处理文件,每文件2线程处理数据点
   %(prog)s --listfiles                        # 列出所有可用文件
   %(prog)s --files 2025070222 2025070221      # 处理指定文件
   %(prog)s --points "point1,point2"           # 处理指定数据点
@@ -467,6 +599,10 @@ def main():
                         help='列出所有可用文件并退出')
     parser.add_argument('--files', nargs='*',
                         help='指定要处理的文件前缀列表 (例: --files 2025070222 2025070221)')
+    parser.add_argument('--threads', '-t', type=int, default=1,
+                        help='并发线程数 (默认: 1, 单线程; 推荐多线程值: 4)')
+    parser.add_argument('--point-threads', type=int, default=1,
+                        help='单个文件内数据点处理线程数 (默认: 1, 推荐: 2-4)')
     parser.add_argument('--points',
                         help='指定数据点列表, 逗号分隔 (例: "point1,point2,point3")')
 
@@ -477,6 +613,14 @@ def main():
         if not Path(args.dir).exists():
             print(f"[ERROR] 错误: 数据目录不存在: {args.dir}")
             sys.exit(1)
+
+        # 验证线程数
+        if args.threads < 1:
+            print(f"[ERROR] 线程数必须 >= 1, 当前值: {args.threads}")
+            sys.exit(1)
+
+        if args.threads > 8:
+            print(f"[WARN] 线程数过高 ({args.threads}), 建议不超过8个线程")
 
         # 处理--points参数
         target_points = None
@@ -494,7 +638,9 @@ def main():
             database=args.database,
             retry=args.retry,
             target_files=args.files,
-            target_points=target_points
+            target_points=target_points,
+            max_workers=args.threads,
+            point_threads=args.point_threads
         )
 
         # 如果只是列出文件

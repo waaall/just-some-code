@@ -7,36 +7,31 @@ HIS历史数据到ClickHouse数据库导入器
 功能概述:
 --------
 本工具继承自HisDataParser类, 专门用于将解析的HIS历史数据直接写入ClickHouse数据库。
-
+支持单线程和多线程数据点并行处理，大幅提升数据导入性能。
 
 使用说明:
 --------
     支持的参数:
     --file/-f: 文件前缀 (默认: 2025070222)
     --dir/-d: 数据目录 (默认: ./his-data)
-    --points/-p: 指定数据点列表（逗号分隔）
+    --points/-p: 指定数据点列表(逗号分隔)
     --list/-l: 列出所有可用数据点
-    --limit: 限制处理的数据点数量（用于测试）
+    --limit: 限制处理的数据点数量(用于测试)
+    --threads: 数据点处理线程数(默认: 1, 推荐: 2-4)
+    --method: 插入方法 (values/csv, 默认: values)
 
-    使用示例:
-    1. 处理所有数据点:
-       python his_to_clickhouse.py
+    多线程使用示例:
+    1. 单线程处理 (默认):
+       python his_to_clickhouse.py --points "point1,point2"
 
-    2. 处理指定数据点:
-       python his_to_clickhouse.py --points "SYS_XCU001_Memory,SYS_XCU001_CPULoad"
+    2. 多线程处理 (推荐):
+       python his_to_clickhouse.py --points "point1,point2,point3,point4" --threads 2
 
-    3. 列出可用数据点:
-       python his_to_clickhouse.py --list
+    3. 最大并发处理:
+       python his_to_clickhouse.py --threads 4
 
-    4. 测试模式(只处理前10个数据点):
-       python his_to_clickhouse.py --limit 10
-
-
-核心特性:
---------
-- 继承原有解析功能:复用HisDataParser的解析能力
-- ClickHouse连接管理:支持连接池和自动重连
-- 数据类型映射:自动处理Python到ClickHouse的类型转换
+    4. 多线程CSV批量插入:
+       python his_to_clickhouse.py --threads 2 --method csv --limit 10
 
 
 数据库设计:使用现有数据库表结构,进行数据插入
@@ -60,6 +55,8 @@ import time
 import struct
 import requests
 import traceback
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -104,6 +101,19 @@ class HisToClickHouseParser(HisDataParser):
             'start_time': None,
             'idx_parse_time': 0
         }
+
+        # 线程安全锁
+        self.stats_lock = threading.Lock()
+
+    def _update_stats_thread_safe(self, **kwargs):
+        """线程安全地更新统计信息"""
+        with self.stats_lock:
+            for key, value in kwargs.items():
+                if key in self.stats:
+                    if isinstance(value, (int, float)):
+                        self.stats[key] += value
+                    else:
+                        self.stats[key] = value
 
     def _execute_clickhouse_query(self, query: str, retries: int = 3) -> Optional[str]:
         """执行ClickHouse指令"""
@@ -196,7 +206,7 @@ VALUES {','.join(values_parts)}"""
             # 使用统一的执行函数
             result = self._execute_clickhouse_query(insert_query)
             if result is not None:
-                self.stats['total_records'] += total_records
+                self._update_stats_thread_safe(total_records=total_records)
                 point_type = point_all_data[0].point_type
                 print(f"{point_name}: {total_records:,}条记录 (type={point_type}) [VALUES批量]")
                 return True
@@ -253,7 +263,7 @@ VALUES {','.join(values_parts)}"""
                 )
                 response.raise_for_status()
 
-                self.stats['total_records'] += total_records
+                self._update_stats_thread_safe(total_records=total_records)
                 point_type = point_all_data[0].point_type
                 print(f"{point_name}: {total_records:,}条记录 (type={point_type}) [CSV批量]")
                 return True
@@ -266,19 +276,57 @@ VALUES {','.join(values_parts)}"""
             print(f"[ERROR]数据点 '{point_name}' 处理失败: {e}")
             return False
 
+    def __process_single_point_thread_safe(self, directory: str, file_prefix: str,
+                                           point_name: str, insert_func, point_index: int,
+                                           total_points: int):
+        """线程安全地处理单个数据点"""
+        try:
+            # 直接获取StructPoint对象, 无需转换
+            point_all_data = self.read_single_point_all_blocks(directory, file_prefix, point_name)
+
+            # 使用选定的插入方法
+            if point_all_data:
+                success = insert_func(point_name, point_all_data)
+                if success:
+                    self._update_stats_thread_safe(successful_points=1)
+                else:
+                    self._update_stats_thread_safe(failed_points=1)
+            else:
+                print(f"[Warning][{point_index:,}/{total_points:,}] {point_name}: 无数据")
+                self._update_stats_thread_safe(failed_points=1)
+
+            self._update_stats_thread_safe(processed_points=1)
+
+            return True
+
+        except Exception as e:
+            print(f"[ERROR][{point_index:,}] {point_name} 处理失败: {e}")
+            self._update_stats_thread_safe(failed_points=1, processed_points=1)
+            return False
+
     def parse_points_to_clickhouse(self, directory: str, file_prefix: str,
                                    point_names: List[str] = None,
-                                   insert_method: str = "values") -> bool:
+                                   insert_method: str = "values",
+                                   max_workers: int = 1) -> bool:
         """
-        数据点上传服务器:支持选择性处理指定数据点
-        =============================================
+        数据点上传服务器:支持选择性处理指定数据点和多线程处理
+        ========================================================
 
         Args:
             directory: 数据文件目录
             file_prefix: 文件前缀
             point_names: 要处理的数据点列表, None表示处理全部
             insert_method: 插入方法 ("values" 或 "csv")
+            max_workers: 最大线程数 (1=单线程, 2-4=多线程)
         """
+        # 验证和调整线程数
+        if max_workers > 4:
+            print(f"[WARN] 线程数过高 ({max_workers}), 自动调整为4个线程")
+            max_workers = 4
+        elif max_workers < 1:
+            print(f"[WARN] 线程数无效 ({max_workers}), 自动调整为1个线程")
+            max_workers = 1
+
         print("=== HIS数据到ClickHouse批量导入 ===")
         print(f"目标文件: {file_prefix}")
         print(f"目标数据库: {self.database}")
@@ -288,8 +336,7 @@ VALUES {','.join(values_parts)}"""
         if point_names:
             print(f"指定处理: {len(point_names)} 个数据点")
         else:
-            print("处理模式: 全部数据点")
-        print()
+            print("数据点模式: 全部数据点\n")
 
         self.stats['start_time'] = time.time()
 
@@ -345,33 +392,63 @@ VALUES {','.join(values_parts)}"""
                 insert_func = self._insert_point_csv_data
             print()
 
-            # 5. 逐个处理数据点
-            for i, point_name in enumerate(target_points, 1):
-                try:
-                    # 直接获取StructPoint对象, 无需转换
-                    point_all_data = self.read_single_point_all_blocks(directory, file_prefix, point_name)
+            # 5. 处理数据点 - 支持单线程和多线程
+            if max_workers == 1:
+                # 单线程处理
+                for i, point_name in enumerate(target_points, 1):
+                    try:
+                        # 直接获取StructPoint对象, 无需转换
+                        point_all_data = self.read_single_point_all_blocks(directory, file_prefix, point_name)
 
-                    # 使用选定的插入方法
-                    if point_all_data:
-                        success = insert_func(point_name, point_all_data)
-                        if success:
-                            self.stats['successful_points'] += 1
+                        # 使用选定的插入方法
+                        if point_all_data:
+                            success = insert_func(point_name, point_all_data)
+                            if success:
+                                self.stats['successful_points'] += 1
+                            else:
+                                self.stats['failed_points'] += 1
                         else:
+                            print(f"[Warning][{i:,}/{len(target_points):,}] {point_name}: 无数据")
                             self.stats['failed_points'] += 1
-                    else:
-                        print(f"[Warning][{i:,}/{len(target_points):,}] {point_name}: 无数据")
+
+                        self.stats['processed_points'] += 1
+
+                        # 每10个点显示一次进度
+                        if i % 10 == 0:
+                            self._print_progress()
+
+                    except Exception as e:
+                        print(f"[ERROR][{i:,}] {point_name} 处理失败: {e}")
                         self.stats['failed_points'] += 1
+                        self.stats['processed_points'] += 1
+            else:
+                # 多线程处理
+                print(f"\n[MULTI-THREAD] 使用 {max_workers} 个线程并行处理\n")
 
-                    self.stats['processed_points'] += 1
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # 提交所有任务
+                    future_to_point = {}
+                    for i, point_name in enumerate(target_points, 1):
+                        future = executor.submit(
+                            self.__process_single_point_thread_safe,
+                            directory, file_prefix, point_name, insert_func, i, len(target_points)
+                        )
+                        future_to_point[future] = (i, point_name)
 
-                    # 每10个点显示一次进度
-                    if i % 10 == 0:
-                        self._print_progress()
+                    # 收集结果并显示进度
+                    completed_count = 0
+                    for future in as_completed(future_to_point):
+                        point_index, point_name = future_to_point[future]
+                        completed_count += 1
 
-                except Exception as e:
-                    print(f"[ERROR][{i:,}] {point_name} 处理失败: {e}")
-                    self.stats['failed_points'] += 1
-                    self.stats['processed_points'] += 1
+                        try:
+                            future.result()  # 等待任务完成，检查异常
+                            # 每10个点显示一次进度
+                            if completed_count % 10 == 0:
+                                self._print_progress()
+                        except Exception as e:
+                            print(f"[ERROR]线程处理异常 {point_name}: {e}")
+                            self._update_stats_thread_safe(failed_points=1, processed_points=1)
 
             # 6. 最终统计
             self._print_final_stats()
@@ -383,12 +460,13 @@ VALUES {','.join(values_parts)}"""
             return False
 
     def _print_progress(self):
-        """打印详细进度"""
-        processed = self.stats['processed_points']
-        total = self.stats['total_points']
-        successful = self.stats['successful_points']
-        failed = self.stats['failed_points']
-        records = self.stats['total_records']
+        """打印详细进度(线程安全)"""
+        with self.stats_lock:
+            processed = self.stats['processed_points']
+            total = self.stats['total_points']
+            successful = self.stats['successful_points']
+            failed = self.stats['failed_points']
+            records = self.stats['total_records']
 
         if total > 0:
             percentage = (processed / total) * 100
@@ -446,10 +524,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  %(prog)s                                    # 处理所有数据点(VALUES方式)
+  %(prog)s                                    # 处理所有数据点(VALUES方式,单线程)
   %(prog)s --points "point1,point2"          # 处理指定数据点
   %(prog)s --method csv                       # 使用CSV格式插入
   %(prog)s --method values                    # 使用VALUES格式插入(默认)
+  %(prog)s --threads 4                       # 使用4线程并行处理
+  %(prog)s --threads 2 --method csv          # 2线程CSV格式插入
   %(prog)s --list                            # 列出所有数据点
   %(prog)s --limit 10                        # 测试模式, 只处理前10个
   %(prog)s --file 2025070223 --dir /data     # 指定文件和目录
@@ -465,9 +545,11 @@ def main():
     parser.add_argument('--list', '-l', action='store_true',
                         help='列出所有可用数据点并退出')
     parser.add_argument('--limit', type=int,
-                        help='限制处理的数据点数量（用于测试）')
+                        help='限制处理的数据点数量(用于测试)')
     parser.add_argument('--method', '-m', choices=['values', 'csv'], default='values',
                         help='插入方法: values(标准SQL) 或 csv(CSV格式) (默认: values)')
+    parser.add_argument('--threads', '-t', type=int, default=1,
+                        help='并发线程数: 1=单线程, 2-4=多线程 (默认: 1)')
     parser.add_argument('--host', default='192.168.50.30',
                         help='ClickHouse服务器地址 (默认: 192.168.50.30)')
     parser.add_argument('--port', type=int, default=8123,
@@ -535,7 +617,8 @@ def main():
             directory=args.dir,
             file_prefix=args.file,
             point_names=target_points,
-            insert_method=args.method
+            insert_method=args.method,
+            max_workers=args.threads
         )
 
         if success:
