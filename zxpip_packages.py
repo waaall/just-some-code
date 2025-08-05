@@ -40,6 +40,7 @@ class zxPackageManager:
             'neurokit2',
             'PyWavelets',
             'ujson',
+            'docker'
         ]
 
     def install_packages(self):
