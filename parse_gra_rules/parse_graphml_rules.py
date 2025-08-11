@@ -1,3 +1,28 @@
+
+
+# 必要的导入语句
+import re
+import os
+import unicodedata
+import networkx as nx
+
+# 模拟 current_app.logger
+class MockLogger:
+    def debug(self, msg):
+        print(f"[DEBUG] {msg}")
+    
+    def warning(self, msg):
+        print(f"[WARNING] {msg}")
+    
+    def error(self, msg, exc_info=False):
+        print(f"[ERROR] {msg}")
+
+class MockCurrentApp:
+    logger = MockLogger()
+
+# 模拟的 current_app，实际使用时请删除
+current_app = MockCurrentApp()
+
 def extract_rules(graphml_path):
     """
     从GraphML文件中只提取叶子节点（出度为0的最下层节点）的标签和连接到这些叶子节点的边的标签。
@@ -38,30 +63,54 @@ def extract_rules(graphml_path):
 
     def extract_test_points_from_condition(condition):
         """从复杂条件字符串中提取测点名称（支持运算符和括号）"""
+        current_app.logger.debug("--- 开始测点提取 ---")
+        current_app.logger.debug(f"输入条件: '{condition}'")
+        
         # 匹配包含字母/数字/下划线的标识符（支持点号）
         # 排除运算符、括号和数字常量
         pattern = r'[a-zA-Z_][\w.]*'  # 匹配以字母/下划线开头的标识符
+        current_app.logger.debug(f"使用正则表达式: {pattern}")
 
         # 查找所有候选标识符
         candidates = re.findall(pattern, condition)
+        current_app.logger.debug(f"正则匹配到的候选: {candidates}")
 
         # 过滤和验证测点
         test_points = []
+        excluded_candidates = []
+        
         for cand in candidates:
+            current_app.logger.debug(f"处理候选: '{cand}'")
+            
             # 排除纯数字（包括科学计数法）
             if re.fullmatch(r'\d+\.?\d*([eE][-+]?\d+)?', cand):
+                current_app.logger.debug(f"  -> 排除原因: 纯数字")
+                excluded_candidates.append(f"'{cand}': 纯数字")
                 continue
 
             # 排除常见运算符和关键字（根据实际需求扩展）
             if cand.lower() in {'and', 'or', 'not', 'in', 'is', 'null'}:
+                current_app.logger.debug(f"  -> 排除原因: 关键字")
+                excluded_candidates.append(f"'{cand}': 关键字")
                 continue
 
             # 排除单个特殊字符（如变量"i"需要保留）
             if len(cand) > 1 or (len(cand) == 1 and cand.isalpha()):
+                current_app.logger.debug(f"  -> 保留为测点")
                 test_points.append(cand)
+            else:
+                current_app.logger.debug(f"  -> 排除原因: 单字符非字母")
+                excluded_candidates.append(f"'{cand}': 单字符非字母")
 
+        current_app.logger.debug(f"排除的候选: {excluded_candidates}")
+        current_app.logger.debug(f"保留的测点: {test_points}")
+        
         # 去重并排序
-        return sorted(set(test_points))
+        final_points = sorted(set(test_points))
+        current_app.logger.debug(f"最终测点列表: {final_points}")
+        current_app.logger.debug("--- 测点提取结束 ---")
+        
+        return final_points
 
     def validate_rule_format(rule):
         """验证规则格式是否正确"""
@@ -149,10 +198,15 @@ def extract_rules(graphml_path):
         rule_mapping = []
         invalid_rules = []
         
+        current_app.logger.debug(f"=== 开始处理 {len(rules)} 条规则 ===")
+        
         for i, rule in enumerate(rules):
+            current_app.logger.debug(f"处理规则 {i+1}: '{rule}'")
+            
             # 验证规则格式
             is_valid, error_msg = validate_rule_format(rule)
             if not is_valid:
+                current_app.logger.error(f"规则格式验证失败: {error_msg}")
                 return {"error": f"规则格式错误: {error_msg}，在规则 {i+1} 中"} 
             
             try:
@@ -160,26 +214,36 @@ def extract_rules(graphml_path):
                 condition_part = condition_part.strip()
                 fault_description = fault_description.strip()
                 
+                current_app.logger.debug(f"  条件部分: '{condition_part}'")
+                current_app.logger.debug(f"  故障描述: '{fault_description}'")
+                
                 # 提取测点名称
                 test_points = extract_test_points_from_condition(condition_part)
                 
                 # 如果没有找到测点，记录警告但继续处理
                 if not test_points:
+                    current_app.logger.warning(f"  未找到测点名称")
                     current_app.logger.warning(f"叶子节点规则 '{rule}' 中未找到测点名称")
                     #test_points = ["unknown_sensor"]
+                else:
+                    current_app.logger.debug(f"  找到测点: {test_points}")
                 
                 # 获取对应的叶子节点ID
                 leaf_node_id = rule_node_mapping[i] if i < len(rule_node_mapping) else "unknown_node"
                 
                 # 直接添加到列表中，允许重复的测点名称，并包含叶子节点ID
-                rule_mapping.append({
+                mapping = {
                     "fault_name_code": ", ".join(test_points),
                     "fault_name": fault_description,
                     "fault_node_id": leaf_node_id
-                })
+                }
+                rule_mapping.append(mapping)
+                current_app.logger.debug(f"  生成映射: {mapping}")
                 
             except Exception as e:
-                invalid_rules.append(f"规则{i+1}: 处理失败 - {str(e)}")
+                error_msg = f"规则{i+1}: 处理失败 - {str(e)}"
+                current_app.logger.error(f"  处理失败: {str(e)}")
+                invalid_rules.append(error_msg)
         
         # 如果有无效规则，记录警告
         if invalid_rules:
@@ -187,6 +251,12 @@ def extract_rules(graphml_path):
 
         current_app.logger.debug(f"生成叶子节点规则映射 {len(rule_mapping)} 条，允许测点名称重复")
         current_app.logger.debug(f"生成的规则映射: {rule_mapping}")
+        
+        current_app.logger.debug("=== 最终结果 ===")
+        current_app.logger.debug(f"规则总数: {len(rules)}")
+        current_app.logger.debug(f"映射总数: {len(rule_mapping)}")
+        current_app.logger.debug(f"无效规则: {len(invalid_rules)}")
+        
         return {
             "rules": rules,
             "rule_mapping": rule_mapping
@@ -211,3 +281,109 @@ def extract_rules(graphml_path):
         error_msg = f"提取规则时发生未知错误: {str(e)}"
         current_app.logger.error(error_msg, exc_info=True)
         return {"error": error_msg}
+
+
+def test_sensor_extraction():
+    """测试测点提取功能"""
+    current_app.logger.debug("="*80)
+    current_app.logger.debug("测点提取功能测试")
+    current_app.logger.debug("="*80)
+    
+    # 创建一个临时的测点提取函数用于测试
+    def extract_test_points_from_condition(condition):
+        """从复杂条件字符串中提取测点名称（支持运算符和括号）"""
+        current_app.logger.debug("--- 开始测点提取 ---")
+        current_app.logger.debug(f"输入条件: '{condition}'")
+        
+        pattern = r'[a-zA-Z_][\w.]*'
+        current_app.logger.debug(f"使用正则表达式: {pattern}")
+
+        candidates = re.findall(pattern, condition)
+        current_app.logger.debug(f"正则匹配到的候选: {candidates}")
+
+        test_points = []
+        excluded_candidates = []
+        
+        for cand in candidates:
+            current_app.logger.debug(f"处理候选: '{cand}'")
+            
+            if re.fullmatch(r'\d+\.?\d*([eE][-+]?\d+)?', cand):
+                current_app.logger.debug(f"  -> 排除原因: 纯数字")
+                excluded_candidates.append(f"'{cand}': 纯数字")
+                continue
+
+            if cand.lower() in {'and', 'or', 'not', 'in', 'is', 'null'}:
+                current_app.logger.debug(f"  -> 排除原因: 关键字")
+                excluded_candidates.append(f"'{cand}': 关键字")
+                continue
+
+            if len(cand) > 1 or (len(cand) == 1 and cand.isalpha()):
+                current_app.logger.debug(f"  -> 保留为测点")
+                test_points.append(cand)
+            else:
+                current_app.logger.debug(f"  -> 排除原因: 单字符非字母")
+                excluded_candidates.append(f"'{cand}': 单字符非字母")
+
+        current_app.logger.debug(f"排除的候选: {excluded_candidates}")
+        current_app.logger.debug(f"保留的测点: {test_points}")
+        
+        final_points = sorted(set(test_points))
+        current_app.logger.debug(f"最终测点列表: {final_points}")
+        current_app.logger.debug("--- 测点提取结束 ---")
+        
+        return final_points
+    
+    # 测试各种条件
+    test_conditions = [
+        "123*5 <45_adr", 
+        "12AD_12 +23_ddf > 66",
+        "343sensor>10-sor",
+        "2_sensor1 && _1_sensor2 || sensor3",
+        "(temp_01 + temp_02) / 2 > threshold",
+        "(1>2)",
+        "_private_sensor > 60"
+    ]
+    
+    for condition in test_conditions:
+        current_app.logger.debug(f"{'='*60}")
+        result = extract_test_points_from_condition(condition)
+        current_app.logger.debug(f"结果: {condition} -> {result}")
+
+
+if __name__ == "__main__":
+    current_app.logger.debug("Extract Rules 函数调试测试")
+    current_app.logger.debug("="*80)
+    
+    # 首先测试测点提取功能
+    test_sensor_extraction()
+    
+    # # 获取当前目录下的GraphML文件
+    # import glob
+    # graphml_files = glob.glob("*.graphml")
+    
+    # if graphml_files:
+    #     # 测试第一个找到的文件
+    #     test_file = graphml_files[0]
+    #     current_app.logger.debug(f"测试文件: {test_file}")
+    #     current_app.logger.debug("-" * 60)
+        
+    #     try:
+    #         result = extract_rules(test_file)
+            
+    #         if "error" in result:
+    #             current_app.logger.error(f"错误: {result['error']}")
+    #         else:
+    #             current_app.logger.debug(f"成功处理文件")
+    #             current_app.logger.debug(f"提取到 {len(result.get('rules', []))} 条规则")
+    #             current_app.logger.debug(f"生成 {len(result.get('rule_mapping', []))} 条映射")
+                
+    #             # 显示前几条规则
+    #             rules = result.get('rules', [])
+    #             for i, rule in enumerate(rules[:3]):
+    #                 current_app.logger.debug(f"规则 {i+1}: {rule}")
+                
+    #     except Exception as e:
+    #         current_app.logger.error(f"处理文件时出错: {str(e)}")
+    # else:
+    #     current_app.logger.warning("当前目录下没有找到GraphML文件")
+    #     current_app.logger.warning("请确保有GraphML文件用于测试")
