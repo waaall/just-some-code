@@ -1,0 +1,44 @@
+# 故障树分析系统依赖包
+
+# Flask框架
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# 数据处理
+networkx==3.1
+pandas==2.0.3
+numpy==1.24.3
+
+# JSON和数据序列化
+orjson==3.9.7
+
+# 文件处理
+pathlib2==2.3.7
+
+# 并发和异步
+threading-utils==0.3
+
+# 开发和测试工具
+pytest==7.4.2
+pytest-flask==1.2.0
+pytest-cov==4.1.0
+
+# 代码质量
+black==23.7.0
+flake8==6.0.0
+mypy==1.5.1
+
+# 可选：如果需要更高级的XML处理
+lxml==4.9.3
+
+# 可选：如果需要Web界面
+# Flask-Bootstrap==3.3.7.1
+# Flask-WTF==1.1.1
+
+# 可选：如果需要数据库支持
+# SQLAlchemy==2.0.21
+# Flask-SQLAlchemy==3.0.5
+
+# 可选：如果需要API文档
+# Flask-RESTX==1.1.0
+# marshmallow==3.20.1
