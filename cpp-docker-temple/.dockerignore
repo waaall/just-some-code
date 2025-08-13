@@ -1,0 +1,11 @@
+# 排除git相关文件
+.git
+.gitignore
+
+# 排除IDE相关文件
+.vscode
+.idea
+
+# 排除文档
+README.md
+*.md
