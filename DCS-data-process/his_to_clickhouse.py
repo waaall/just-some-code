@@ -120,7 +120,7 @@ class HisToClickHouseParser(HisDataParser):
         for attempt in range(retries):
             try:
                 response = requests.post(
-                    f"{self.base_url}/{self.database}",
+                    self.base_url,  # 不包含数据库名，在SQL中使用database.table
                     data=query,
                     auth=self.auth,
                     headers={'Content-Type': 'text/plain; charset=utf-8'},
@@ -143,7 +143,7 @@ class HisToClickHouseParser(HisDataParser):
         try:
             result = self._execute_clickhouse_query("SELECT 1")
             if result == "1":
-                print(f"ClickHouse连接成功: {self.base_url}/{self.database}")
+                print(f"ClickHouse连接成功: {self.base_url} (数据库: {self.database})")
                 return True
             else:
                 print("[ERROR]ClickHouse连接失败: 返回结果异常")
@@ -156,7 +156,7 @@ class HisToClickHouseParser(HisDataParser):
         """确保points_data表存在"""
         print("检查数据表...")
         try:
-            check_query = "SELECT 1 FROM points_data LIMIT 1"
+            check_query = f"SELECT 1 FROM {self.database}.points_data LIMIT 1"
             result = self._execute_clickhouse_query(check_query)
 
             if result is not None:
@@ -248,14 +248,14 @@ VALUES {','.join(values_parts)}"""
             csv_data = '\n'.join(csv_lines)
 
             # 使用INSERT FORMAT CSV进行批量插入
-            insert_query = ("INSERT INTO points_data "
+            insert_query = (f"INSERT INTO {self.database}.points_data "
                             "(point_code, point_value, date_time, point_type, param_code) "
                             "FORMAT CSV")
 
             # 发送CSV数据
             try:
                 response = requests.post(
-                    f"{self.base_url}/{self.database}",
+                    self.base_url,  # 不包含数据库名，在SQL中使用database.table
                     data=insert_query + '\n' + csv_data,
                     auth=self.auth,
                     headers={'Content-Type': 'text/plain; charset=utf-8'},

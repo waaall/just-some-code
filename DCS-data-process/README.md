@@ -250,6 +250,13 @@ python batch_his_files_to_ck.py --threads 4 --point-threads 4 --retry 2
 
 ## 开发指南
 
+### 注意事项
+
+request 用 `http://host:port/` ；sql语句查 `database.table` 才能查到正确的数据；
+
+而不是request用 `http://host:port/database` ；sql语句查 `table`。
+
+
 ### 代码结构
 
 ```
