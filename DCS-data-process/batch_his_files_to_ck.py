@@ -76,7 +76,7 @@ except ImportError:
     sys.exit(1)
 
 
-class BatchHisProcessor:
+class BatchHisToCKProcessor:
     """
     批量HIS文件处理器
 
@@ -634,7 +634,7 @@ def main():
             print(f"[TARGET] 用户指定了 {len(target_points)} 个数据点")
 
         # 创建批量处理器
-        processor = BatchHisProcessor(
+        processor = BatchHisToCKProcessor(
             data_dir=args.dir,
             log_dir=args.log_dir,
             method=args.method,
