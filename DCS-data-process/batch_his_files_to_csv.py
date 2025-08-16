@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 HIS文件批量CSV导出
@@ -6,9 +5,8 @@ HIS文件批量CSV导出
 
 功能概述:
 --------
-批量检测指定目录下的HIS文件, 按天分批处理, 每天最多24个文件。
-支持多线程处理、时间范围限制（最多一个月）、数据点限制（最多20个点）。
-优化文件读写性能, 批次之间顺序执行, 批次内部多线程并行。依赖配置文件 his_config.json。
+批量检测指定目录下的HIS文件, 按天分批处理，支持多线程处理；
+时间范围限制（最多一个月）、数据点限制（最多20个点）依赖配置文件 his_config.json。
 
 配置文件自动化:
 --------------
@@ -47,25 +45,21 @@ import json
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from typing import List, Tuple, Dict, Set
+from typing import List, Tuple, Dict
 from pathlib import Path
 from collections import defaultdict
 
 # 导入HisDataParser类
 try:
-    from parse_his_data import HisDataParser, PointInfo, PointDataStruct
+    from parse_his_data import HisDataParser, PointDataStruct
 except ImportError:
     print("[ERROR] 无法导入parse_his_data模块")
     sys.exit(1)
 
 
 class BatchHisToCsv:
-    """
-    批量HIS文件CSV导出
-    """
     def __init__(self, config_file: str = "his_config.json"):
         """
-        初始化批量HIS文件CSV导出
         Args:
             config_file: 配置文件路径
         """
@@ -83,6 +77,7 @@ class BatchHisToCsv:
         max_workers = config.get('max_workers', 4)
         point_threads = config.get('point_threads', 4)
         csv_format = config.get('csv_format', 'detailed')
+        save_individual_points = config.get('save_individual_points', False)
         
         # 参数验证和设置
         self.data_dir = Path(data_dir).resolve()
@@ -122,6 +117,7 @@ class BatchHisToCsv:
         self.point_threads = max(1, min(4, point_threads))
         
         self.csv_format = csv_format
+        self.save_individual_points = save_individual_points
         
         # 数据缓存池 - 内存中存储所有数据点的数据
         # 结构: {point_name: {file_prefix: [PointDataStruct, ...]}}
@@ -153,6 +149,7 @@ class BatchHisToCsv:
         self.logger.info(f"处理天数: {self.days}")
         self.logger.info(f"开始日期: {self.start_date.strftime('%Y-%m-%d')}")
         self.logger.info(f"CSV格式: {self.csv_format}")
+        self.logger.info(f"保存单个数据点文件: {self.save_individual_points}")
         self.logger.info(f"线程配置: 文件级{self.max_workers}, 数据点级{self.point_threads}")
         
         # 验证配置
@@ -178,6 +175,7 @@ class BatchHisToCsv:
             "max_workers": 4,
             "point_threads": 4,
             "csv_format": "detailed",
+            "save_individual_points": False,
             "description": "HIS文件批量CSV导出配置文件",
         }
         
@@ -212,7 +210,6 @@ class BatchHisToCsv:
             print(f"[NOTICE] 请编辑该文件设置您的参数:")
             print(f"[NOTICE] - data_dir: HIS数据文件目录")
             print(f"[NOTICE] - target_points: 要导出的数据点列表") 
-            print(f"[NOTICE] - start_date: 开始日期 (YYYYMMDD)")
             print(f"[NOTICE] - days: 处理天数 (1-31)")
             print(f"[NOTICE] 编辑完成后重新运行程序")
             print(f"[NOTICE] ==========================================")
@@ -312,7 +309,6 @@ class BatchHisToCsv:
     def discover_daily_batches(self) -> List[Tuple[datetime, List[Tuple[str, str]]]]:
         """
         按天发现和组织HIS文件
-        
         Returns:
             List[Tuple[datetime, List[Tuple[str, str]]]]: (日期, [(file_prefix, his_path)])
         """
@@ -399,7 +395,6 @@ class BatchHisToCsv:
     def list_available_points(self, sample_date: datetime = None) -> List[str]:
         """
         列出指定日期的所有可用数据点
-        
         Args:
             sample_date: 采样日期, None则使用开始日期
         """
@@ -449,11 +444,9 @@ class BatchHisToCsv:
     def process_single_file(self, file_prefix: str, points_to_process: List[str]) -> Tuple[bool, int]:
         """
         处理单个HIS文件 - 只负责数据读取和缓存, 不写入文件
-        
         Args:
             file_prefix: 文件前缀
             points_to_process: 要处理的数据点列表
-            
         Returns:
             Tuple[bool, int]: (是否成功, 记录数量)
         """
@@ -514,12 +507,10 @@ class BatchHisToCsv:
     def _read_and_cache_point_data(self, parser: HisDataParser, file_prefix: str, point_name: str) -> int:
         """
         读取单个数据点数据并存入缓存
-        
         Args:
             parser: HIS数据解析器
             file_prefix: 文件前缀
-            point_name: 数据点名称
-            
+            point_name: 数据点名称 
         Returns:
             int: 读取的记录数
         """
@@ -544,16 +535,35 @@ class BatchHisToCsv:
             return 0
     
     def _sanitize_filename(self, filename: str) -> str:
-        """清理文件名中的特殊字符"""
-        invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', ' ']
+        """
+        清理文件名中的特殊字符，并控制长度
+        Args:
+            filename: 原始文件名
+        Returns:
+            str: 清理后的安全文件名
+        """
+        # 替换特殊字符
+        invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', ' ', '.']
+        sanitized = filename
         for char in invalid_chars:
-            filename = filename.replace(char, '_')
-        return filename
+            sanitized = sanitized.replace(char, '_')
+        
+        # 移除连续的下划线
+        while '__' in sanitized:
+            sanitized = sanitized.replace('__', '_')
+        
+        # 移除开头和结尾的下划线
+        sanitized = sanitized.strip('_')
+        
+        # 如果为空，使用默认名称
+        if not sanitized:
+            sanitized = 'unnamed_point'
+        
+        return sanitized
     
     def _write_csv_file(self, filepath: Path, data_points: List[PointDataStruct], point_name: str) -> None:
         """
         写入CSV文件
-        
         Args:
             filepath: CSV文件路径
             data_points: 数据点列表
@@ -585,9 +595,84 @@ class BatchHisToCsv:
                         'value': point.point_value
                     })
     
+    def _write_merged_csv_file(self, date: datetime, all_points_data: Dict[str, List[PointDataStruct]]) -> int:
+        """
+        写入合并所有数据点的CSV文件
+        Args:
+            date: 日期
+            all_points_data: 所有数据点的数据字典 {point_name: [PointDataStruct, ...]}
+        Returns:
+            int: 写入的记录数
+        """
+        # 生成合并文件名 - 避免文件名过长的问题
+        points_str = "_".join([self._sanitize_filename(p) for p in self.target_points])
+        
+        # 检查文件名长度，如果太长则使用简化策略
+        max_filename_length = 200  # 预留一些空间给日期和扩展名
+        if len(points_str) > max_filename_length:
+            # 策略1：只使用前几个点名 + 点数量
+            num_points = len(self.target_points)
+            if num_points <= 3:
+                # 如果点数少，截断每个点名
+                truncated_points = [self._sanitize_filename(p)[:20] for p in self.target_points[:3]]
+                points_str = "_".join(truncated_points)
+            else:
+                # 如果点数多，使用前2个点名 + 总数
+                first_two = [self._sanitize_filename(p)[:15] for p in self.target_points[:2]]
+                points_str = "_".join(first_two) + f"_and_{num_points-2}_more"
+        
+        merged_filename = f"{date.strftime('%Y%m%d')}_{points_str}.csv"
+        
+        # 最终检查：如果还是太长，使用最简方案
+        if len(merged_filename) > 220:
+            merged_filename = f"{date.strftime('%Y%m%d')}_merged_{len(self.target_points)}_points.csv"
+        
+        merged_filepath = self.output_dir / merged_filename
+        
+        # 收集所有时间戳
+        all_timestamps = set()
+        for point_data_list in all_points_data.values():
+            for point_data in point_data_list:
+                all_timestamps.add(point_data.date_time)
+        
+        # 按时间排序
+        sorted_timestamps = sorted(all_timestamps)
+        
+        # 为每个数据点创建时间戳到值的映射
+        point_value_maps = {}
+        for point_name, point_data_list in all_points_data.items():
+            point_value_maps[point_name] = {
+                point_data.date_time: point_data.point_value 
+                for point_data in point_data_list
+            }
+        
+        # 写入合并的CSV文件
+        with open(merged_filepath, 'w', newline='', encoding='utf-8') as csvfile:
+            # 创建列名：timestamp + 各个数据点名
+            fieldnames = ['timestamp'] + self.target_points
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            
+            written_records = 0
+            for timestamp in sorted_timestamps:
+                row = {'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+                
+                # 为每个数据点添加对应时间的值，如果没有则为空
+                for point_name in self.target_points:
+                    if point_name in point_value_maps and timestamp in point_value_maps[point_name]:
+                        row[point_name] = point_value_maps[point_name][timestamp]
+                    else:
+                        row[point_name] = ''  # 如果该时间点没有数据则为空
+                
+                writer.writerow(row)
+                written_records += 1
+        
+        self.logger.info(f"合并文件: {written_records:,} 条记录 -> {merged_filename}")
+        return written_records
+    
     def _write_daily_csv_files(self, date: datetime, file_prefixes: List[str]) -> int:
         """
-        将缓存中的数据写入CSV文件 - 每个数据点一个文件包含一天所有数据
+        将缓存中的数据写入CSV文件 - 每个数据点一个文件包含一天所有数据，同时生成合并文件
         
         Args:
             date: 日期
@@ -600,36 +685,42 @@ class BatchHisToCsv:
         # CSV write start already logged above
         
         total_written = 0
+        all_points_data = {}  # 存储所有数据点的数据，用于合并文件
         
         # 为每个数据点创建一个CSV文件, 包含该天所有小时的数据
         for point_name in self.target_points:
-            safe_point_name = self._sanitize_filename(point_name)
-            csv_filename = f"{date.strftime('%Y%m%d')}_{safe_point_name}.csv"
-            csv_filepath = self.output_dir / csv_filename
-            
             # 收集该数据点在该天的所有数据
             all_point_data = []
-            
+    
             with self.cache_lock:
                 if point_name in self.data_cache:
                     for file_prefix in sorted(file_prefixes):  # 按时间顺序
                         if file_prefix in self.data_cache[point_name]:
                             all_point_data.extend(self.data_cache[point_name][file_prefix])
-            
+
             if all_point_data:
-                # 按时间排序
-                all_point_data.sort(key=lambda x: x.date_time)
-                
-                # 写入CSV文件
-                self._write_csv_file(csv_filepath, all_point_data, point_name)
+                # 根据配置决定是否写入单个数据点的CSV文件
+                if self.save_individual_points:
+                    safe_point_name = self._sanitize_filename(point_name)
+                    csv_filename = f"{date.strftime('%Y%m%d')}_{safe_point_name}.csv"
+                    csv_filepath = self.output_dir / csv_filename
+                    # 按时间排序（仅在需要生成单个文件时排序）
+                    all_point_data.sort(key=lambda x: x.date_time)
+                    self._write_csv_file(csv_filepath, all_point_data, point_name)
+
+                self.logger.info(f"{point_name}: {len(all_point_data):,} 条记录")
                 total_written += len(all_point_data)
-                
-                self.logger.info(f"{point_name}: {len(all_point_data):,} 条记录 -> {csv_filename}")
-                # CSV write already logged above
+
+                # 存储数据用于合并文件（合并文件生成时会统一排序）
+                all_points_data[point_name] = all_point_data
             else:
                 self.logger.info(f"{point_name}: 无数据")
-                # No data already logged above
-        
+
+        # 生成合并所有数据点的CSV文件
+        if all_points_data:
+            merged_records = self._write_merged_csv_file(date, all_points_data)
+            self.logger.info(f"合并文件: {merged_records:,} 条记录")
+
         # 清理已写入的缓存数据以释放内存
         self._clear_daily_cache(date, file_prefixes)
         
@@ -765,6 +856,7 @@ class BatchHisToCsv:
         self.logger.info(start_info)
         self.logger.info(f"数据点: {', '.join(self.target_points)}")
         self.logger.info(f"CSV格式: {self.csv_format}")
+        self.logger.info(f"保存单个数据点文件: {self.save_individual_points}")
         self.logger.info(f"线程配置: 文件级{self.max_workers}, 数据点级{self.point_threads}")
         
         # 按天顺序处理
