@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HIS文件批量CSV导出器
+HIS文件批量CSV导出器 (自动化版本)
 ===========================================
 
 功能概述:
@@ -9,47 +9,74 @@ HIS文件批量CSV导出器
 批量检测指定目录下的HIS文件，按天分批处理，每天最多24个文件。
 支持多线程处理、时间范围限制（最多一周）、数据点限制（最多10个点）。
 优化文件读写性能，批次之间顺序执行，批次内部多线程并行。
+全自动运行，只依赖配置文件 his_config.json。
+
+配置文件自动化:
+--------------
+程序启动时会自动检查 his_config.json 配置文件：
+- 如果文件不存在，自动生成配置文件模板并提示用户编辑
+- 如果文件存在但格式错误，给出错误提示并退出
+- 如果配置有效，自动加载参数并开始处理
+
+配置文件格式 (his_config.json):
+{
+    "data_dir": "./his-data",
+    "output_dir": "./csv-output", 
+    "target_points": ["SYS_XCU001_Memory", "20MCS-UNITMW"],
+    "days": 1,
+    "start_date": "20250702",
+    "max_workers": 4,
+    "point_threads": 4,
+    "csv_format": "detailed"
+}
 
 使用说明:
 --------
-    支持的参数:
-    --dir/-d: 数据文件目录 (默认: ./his-data)
-    --output: CSV输出目录 (默认: ./csv-output)
-    --points/-p: 指定数据点列表（逗号分隔，最多10个）
-    --days: 处理天数 (1-7天，默认: 1天)
-    --start-date: 开始日期 (YYYYMMDD格式)
-    --threads/-t: 文件级线程数 (默认: 4)
-    --point-threads: 数据点级线程数 (默认: 4)
-    --listfiles: 列出所有可用文件并退出
-    --listpoints: 列出指定日期的所有数据点
-    --format: CSV格式 (simple/detailed, 默认: simple)
+1. 首次运行：
+   python batch_his_files_to_csv.py
+   (会自动生成配置文件模板并退出)
 
-    使用示例:
-    1. 导出指定数据点一天数据:
-       python batch_his_files_to_csv.py --points "SYS_XCU001_Memory,20MCS-UNITMW" --start-date 20250702
+2. 编辑配置文件：
+   修改 his_config.json 中的参数
 
-    2. 导出一周数据:
-       python batch_his_files_to_csv.py --points "SYS_XCU001_Memory" --start-date 20250702 --days 7
+3. 再次运行：
+   python batch_his_files_to_csv.py
+   (自动读取配置并开始处理)
 
-    3. 列出指定日期所有数据点:
-       python batch_his_files_to_csv.py --start-date 20250702 --listpoints
+配置参数说明:
+-----------
+- data_dir: HIS数据文件目录路径
+- output_dir: CSV输出目录路径  
+- target_points: 要导出的数据点列表（最多10个）
+- days: 处理天数（1-7天）
+- start_date: 开始日期（YYYYMMDD格式）
+- max_workers: 文件级并发线程数（1-4）
+- point_threads: 数据点级并发线程数（1-4）
+- csv_format: CSV格式（"simple" 或 "detailed"）
 
-    4. 自定义线程数:
-       python batch_his_files_to_csv.py --points "point1,point2" --threads 2 --point-threads 2
+特性:
+----
+- 零配置首次运行体验
+- 自动生成配置文件模板
+- 配置验证和错误提示
+- 全自动批量处理
+- 高性能多线程处理
+- 详细的日志记录
 
 作者: zhengxu
-版本: 1.0
+版本: 2.0
 创建: 2025-08-16
+更新: 简化为纯配置文件驱动的自动化版本
 """
 
 import os
 import sys
 import time
 import glob
-import argparse
 import csv
 import threading
 import logging
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Set
@@ -64,6 +91,73 @@ except ImportError:
     sys.exit(1)
 
 
+def load_config(config_file: str = "his_config.json") -> dict:
+    """
+    加载配置文件
+    
+    Args:
+        config_file: 配置文件路径
+        
+    Returns:
+        dict: 配置参数字典，如果文件不存在或为空则返回空字典
+    """
+    config_path = Path(config_file)
+    
+    if not config_path.exists():
+        print(f"[INFO] 配置文件 {config_file} 不存在，使用命令行参数")
+        return {}
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_content = f.read().strip()
+            if not config_content:
+                print(f"[INFO] 配置文件 {config_file} 为空，使用命令行参数")
+                return {}
+            
+            config = json.loads(config_content)
+            print(f"[INFO] 已加载配置文件: {config_file}")
+            return config
+            
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] 配置文件 {config_file} 格式错误: {e}")
+        print("[INFO] 将使用命令行参数")
+        return {}
+    except Exception as e:
+        print(f"[ERROR] 读取配置文件 {config_file} 失败: {e}")
+        print("[INFO] 将使用命令行参数")
+        return {}
+
+
+def save_config_template(config_file: str = "his_config.json") -> None:
+    """
+    保存配置文件模板
+    
+    Args:
+        config_file: 配置文件路径
+    """
+    template_config = {
+        "data_dir": "./his-data",
+        "output_dir": "./csv-output",
+        "target_points": [
+            "SYS_XCU001_Memory",
+            "20MCS-UNITMW"
+        ],
+        "days": 1,
+        "start_date": None,
+        "max_workers": 4,
+        "point_threads": 4,
+        "csv_format": "detailed",
+        "description": "HIS文件批量CSV导出配置文件模板"
+    }
+    
+    try:
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(template_config, f, ensure_ascii=False, indent=4)
+        print(f"[SUCCESS] 配置文件模板已保存: {config_file}")
+    except Exception as e:
+        print(f"[ERROR] 保存配置文件模板失败: {e}")
+
+
 class BatchHisToCsv:
     """
     批量HIS文件CSV导出器
@@ -76,10 +170,29 @@ class BatchHisToCsv:
     5. 优化文件读写性能
     """
     
-    def __init__(self, data_dir: str = "./his-data", output_dir: str = "./csv-output",
-                 target_points: List[str] = None, days: int = 1, start_date: str = None,
-                 max_workers: int = 4, point_threads: int = 4, csv_format: str = "detailed"):
+    def __init__(self, config_file: str = "his_config.json"):
+        """
+        初始化批量HIS文件CSV导出器
         
+        Args:
+            config_file: 配置文件路径
+        """
+        print(f"[INIT] 初始化HIS数据批量CSV导出器...")
+        
+        # 自动处理配置文件
+        config = self._load_and_validate_config(config_file)
+        
+        # 从配置文件读取参数
+        data_dir = config.get('data_dir', './his-data')
+        output_dir = config.get('output_dir', './csv-output')
+        target_points = config.get('target_points', [])
+        days = config.get('days', 1)
+        start_date = config.get('start_date', None)
+        max_workers = config.get('max_workers', 4)
+        point_threads = config.get('point_threads', 4)
+        csv_format = config.get('csv_format', 'detailed')
+        
+        # 参数验证和设置
         self.data_dir = Path(data_dir).resolve()
         self.output_dir = Path(output_dir).resolve()
         
@@ -100,13 +213,11 @@ class BatchHisToCsv:
         # 验证和限制数据点数量
         if target_points and len(target_points) > 10:
             self.logger.warning(f"数据点数量超过限制 ({len(target_points)}), 只处理前10个")
-            self.logger.warning(f"数据点数量超过限制 ({len(target_points)}), 只处理前10个")
             target_points = target_points[:10]
         self.target_points = target_points
         
         # 验证和限制天数
         if days < 1 or days > 7:
-            self.logger.error(f"天数必须在1-7之间, 当前值: {days}")
             self.logger.error(f"天数必须在1-7之间, 当前值: {days}")
             days = max(1, min(7, days))
         self.days = days
@@ -143,13 +254,85 @@ class BatchHisToCsv:
         self._parser_lock = threading.Lock()
         
         # 初始化日志
-        self.logger.info(f"HIS数据批量CSV导出器初始化")
+        self.logger.info(f"HIS数据批量CSV导出器初始化完成")
         self.logger.info(f"数据目录: {self.data_dir}")
         self.logger.info(f"输出目录: {self.output_dir}")
         self.logger.info(f"目标数据点: {target_points}")
         self.logger.info(f"处理天数: {self.days}")
+        self.logger.info(f"开始日期: {self.start_date.strftime('%Y-%m-%d')}")
         self.logger.info(f"CSV格式: {self.csv_format}")
         self.logger.info(f"线程配置: 文件级{self.max_workers}, 数据点级{self.point_threads}")
+        
+        # 验证配置
+        self._validate_configuration()
+    
+    def _load_and_validate_config(self, config_file: str) -> dict:
+        """
+        加载和验证配置文件，如果不存在则自动创建模板
+        
+        Args:
+            config_file: 配置文件路径
+            
+        Returns:
+            dict: 配置字典
+        """
+        config_path = Path(config_file)
+        
+        # 如果配置文件不存在，创建模板并提示用户
+        if not config_path.exists():
+            print(f"[INFO] 配置文件 {config_file} 不存在")
+            print(f"[INFO] 正在创建默认配置文件模板...")
+            
+            save_config_template(config_file)
+            
+            print(f"[NOTICE] ==========================================")
+            print(f"[NOTICE] 已自动生成配置文件: {config_file}")
+            print(f"[NOTICE] 请编辑该文件设置您的参数:")
+            print(f"[NOTICE] - data_dir: HIS数据文件目录")
+            print(f"[NOTICE] - target_points: 要导出的数据点列表") 
+            print(f"[NOTICE] - start_date: 开始日期 (YYYYMMDD)")
+            print(f"[NOTICE] - days: 处理天数 (1-7)")
+            print(f"[NOTICE] 编辑完成后重新运行程序")
+            print(f"[NOTICE] ==========================================")
+            sys.exit(0)
+        
+        # 加载配置文件
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_content = f.read().strip()
+                if not config_content:
+                    print(f"[ERROR] 配置文件 {config_file} 为空")
+                    sys.exit(1)
+                
+                config = json.loads(config_content)
+                print(f"[CONFIG] 已加载配置文件: {config_file}")
+                return config
+                
+        except json.JSONDecodeError as e:
+            print(f"[ERROR] 配置文件 {config_file} 格式错误: {e}")
+            print(f"[HINT] 请检查JSON格式是否正确")
+            sys.exit(1)
+        except Exception as e:
+            print(f"[ERROR] 读取配置文件 {config_file} 失败: {e}")
+            sys.exit(1)
+    
+    def _validate_configuration(self):
+        """验证配置的有效性"""
+        # 检查数据目录
+        if not self.data_dir.exists():
+            self.logger.error(f"数据目录不存在: {self.data_dir}")
+            print(f"[ERROR] 数据目录不存在: {self.data_dir}")
+            print(f"[HINT] 请在配置文件中设置正确的 data_dir 路径")
+            sys.exit(1)
+        
+        # 检查数据点
+        if not self.target_points:
+            self.logger.error("未配置数据点")
+            print(f"[ERROR] 未配置数据点")
+            print(f"[HINT] 请在配置文件的 target_points 中设置要导出的数据点列表")
+            sys.exit(1)
+        
+        print(f"[CONFIG] 配置验证通过")
     
     def _setup_logger(self):
         """设置高性能日志系统"""
@@ -698,77 +881,16 @@ class BatchHisToCsv:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='HIS文件批量CSV导出器',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-使用示例:
-  %(prog)s --points "SYS_XCU001_Memory,20MCS-UNITMW" --start-date 20250702
-  %(prog)s --points "SYS_XCU001_Memory" --days 7 --start-date 20250702
-  %(prog)s --start-date 20250702 --listpoints
-  %(prog)s --listfiles --days 3 --start-date 20250702
-        """
-    )
-    
-    parser.add_argument('--dir', '-d', default='./his-data',
-                        help='数据文件目录 (默认: ./his-data)')
-    parser.add_argument('--output', default='./csv-output',
-                        help='CSV输出目录 (默认: ./csv-output)')
-    parser.add_argument('--points', '-p',
-                        help='指定数据点列表，逗号分隔 (最多10个)')
-    parser.add_argument('--days', type=int, default=1,
-                        help='处理天数 (1-7天，默认: 1)')
-    parser.add_argument('--start-date',
-                        help='开始日期 (YYYYMMDD格式，默认: 今天)')
-    parser.add_argument('--threads', '-t', type=int, default=4,
-                        help='文件级线程数 (默认: 4)')
-    parser.add_argument('--point-threads', type=int, default=4,
-                        help='数据点级线程数 (默认: 4)')
-    parser.add_argument('--listfiles', action='store_true',
-                        help='列出所有可用文件并退出')
-    parser.add_argument('--listpoints', action='store_true',
-                        help='列出指定日期的所有数据点并退出')
-    parser.add_argument('--format', choices=['simple', 'detailed'], default='detailed',
-                        help='CSV格式: simple(时间+数值) 或 detailed(完整字段)')
-    
-    args = parser.parse_args()
+    """
+    主函数 - 简化版本，只依赖配置文件
+    """
+    print("=" * 60)
+    print("HIS文件批量CSV导出器")
+    print("=" * 60)
     
     try:
-        # 检查数据目录
-        if not Path(args.dir).exists():
-            print(f"[ERROR] 数据目录不存在: {args.dir}")
-            sys.exit(1)
-        
-        # 处理数据点参数
-        target_points = None
-        if args.points:
-            target_points = [p.strip() for p in args.points.split(',') if p.strip()]
-            if len(target_points) > 10:
-                print(f"[WARN] 数据点数量超过限制 (10个), 只处理前10个")
-                target_points = target_points[:10]
-        
-        # 创建批处理器
-        processor = BatchHisToCsv(
-            data_dir=args.dir,
-            output_dir=args.output,
-            target_points=target_points,
-            days=args.days,
-            start_date=args.start_date,
-            max_workers=args.threads,
-            point_threads=args.point_threads,
-            csv_format=args.format
-        )
-        
-        # 处理不同的命令
-        if args.listfiles:
-            print("[START] === HIS文件列表 ===")
-            processor.list_all_files()
-            return
-        
-        if args.listpoints:
-            print("[START] === 数据点列表 ===")
-            processor.list_available_points()
-            return
+        # 创建批处理器（会自动处理配置文件）
+        processor = BatchHisToCsv()
         
         # 开始批量导出
         print("[START] === HIS数据批量CSV导出 ===")

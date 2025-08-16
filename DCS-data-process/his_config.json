@@ -1,0 +1,11 @@
+{
+    "data_dir": "./his-data",
+    "output_dir": "./csv-output",
+    "target_points": [],
+    "days": 1,
+    "start_date": "20250702",
+    "max_workers": 4,
+    "point_threads": 4,
+    "csv_format": "detailed",
+    "description": "HIS文件批量CSV导出配置文件模板"
+}
