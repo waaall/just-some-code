@@ -23,10 +23,12 @@ from datetime import datetime
 
 
 class ClickHousePointReader:
-    def __init__(self, host='192.168.50.30', port=8123, database='ezhou', user='default', password='er3HsdSE2dQIS^VI'):
+    def __init__(self, host='192.168.50.30', port=8123, database='ezhou', 
+                 user='default', password='er3HsdSE2dQIS^VI', table_name='points_data'):
         self.host = host
         self.port = port
         self.database = database
+        self.table_name = table_name
         self.user = user
         self.password = password
         self.base_url = f"http://{host}:{port}"
@@ -41,12 +43,12 @@ class ClickHousePointReader:
             print(f"[DEBUG] Connection test: {resp.status_code}")
             
             # 查看总记录数
-            sql = f"SELECT COUNT(*) FROM {self.database}.points_data"
+            sql = f"SELECT COUNT(*) FROM {self.database}.{self.table_name}"
             resp = requests.post(self.base_url, data=sql, auth=self.auth, timeout=30)
             print(f"[DEBUG] Total records: {resp.text.strip()}")
             
             # 查看时间范围
-            sql = f"SELECT MIN(date_time), MAX(date_time) FROM {self.database}.points_data"
+            sql = f"SELECT MIN(date_time), MAX(date_time) FROM {self.database}.{self.table_name}"
             resp = requests.post(self.base_url, data=sql, auth=self.auth, timeout=30)
             print(f"[DEBUG] Time range: {resp.text.strip()}")
             
@@ -56,7 +58,7 @@ class ClickHousePointReader:
     def query_point_data(self, point_name, start_time, end_time):
         # 使用 toDateTime 函数确保时间格式正确，并指定数据库名
         sql = f"""SELECT date_time, point_value 
-                  FROM {self.database}.points_data 
+                  FROM {self.database}.{self.table_name} 
                   WHERE point_code = '{point_name}' 
                   AND date_time >= toDateTime('{start_time}') 
                   AND date_time <= toDateTime('{end_time}')"""
@@ -99,6 +101,7 @@ def main():
     parser.add_argument('--host', default='192.168.50.30', help='ClickHouse服务器地址')
     parser.add_argument('--port', type=int, default=8123, help='ClickHouse端口')
     parser.add_argument('--database', default='ezhou', help='数据库名称')
+    parser.add_argument('--table', default='points_data', help='表名称')
     parser.add_argument('--user', default='default', help='用户名')
     parser.add_argument('--password', default='er3HsdSE2dQIS^VI', help='密码')
     parser.add_argument('--test', action='store_true', help='测试数据库连接和数据')
@@ -108,6 +111,7 @@ def main():
         host=args.host,
         port=args.port,
         database=args.database,
+        table_name=args.table,
         user=args.user,
         password=args.password
     )

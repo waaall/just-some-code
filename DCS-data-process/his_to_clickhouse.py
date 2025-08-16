@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HIS历史数据到ClickHouse数据库导入器
+HIS历史数据到数据库导入器
 ==================================================
 
 功能概述:
 --------
-本工具继承自HisDataParser类, 专门用于将解析的HIS历史数据直接写入ClickHouse数据库。
+本工具继承自HisDataParser类, 专门用于将解析的HIS历史数据直接写入数据库。
 支持单线程和多线程数据点并行处理，大幅提升数据导入性能。
 
 使用说明:
 --------
     支持的参数:
+    --host: 服务器地址 (默认: 192.168.50.30)
+    --port: 服务器端口 (默认: 8123) 
+    --database: 数据库名称 (默认: ezhou)
     --file/-f: 文件前缀 (默认: 2025070222)
     --dir/-d: 数据目录 (默认: ./his-data)
     --points/-p: 指定数据点列表(逗号分隔)
@@ -78,13 +81,14 @@ class HisToClickHouseParser(HisDataParser):
     """
 
     def __init__(self, host='192.168.50.30', port=8123, database='ezhou',
-                 user='default', password='er3HsdSE2dQIS^VI'):
+                 user='default', password='er3HsdSE2dQIS^VI', table_name='points_data'):
 
         super().__init__()
 
         self.host = host
         self.port = port
         self.database = database
+        self.table_name = table_name
         self.user = user
         self.password = password
 
@@ -153,17 +157,17 @@ class HisToClickHouseParser(HisDataParser):
             return False
 
     def _ensure_table_exists(self) -> bool:
-        """确保points_data表存在"""
+        """确保数据表存在"""
         print("检查数据表...")
         try:
-            check_query = f"SELECT 1 FROM {self.database}.points_data LIMIT 1"
+            check_query = f"SELECT 1 FROM {self.database}.{self.table_name} LIMIT 1"
             result = self._execute_clickhouse_query(check_query)
 
             if result is not None:
-                print("表points_data已存在, 使用现有表结构")
+                print(f"表{self.table_name}已存在, 使用现有表结构")
                 return True
             else:
-                print("[ERROR]表points_data不存在")
+                print(f"[ERROR]表{self.table_name}不存在")
                 return False
 
         except Exception as e:
@@ -199,7 +203,7 @@ class HisToClickHouseParser(HisDataParser):
                 values_parts.append(value_tuple)
 
             # 构建完整的INSERT语句
-            insert_query = f"""INSERT INTO {self.database}.points_data
+            insert_query = f"""INSERT INTO {self.database}.{self.table_name}
 (point_code, point_value, date_time, point_type, param_code)
 VALUES {','.join(values_parts)}"""
 
@@ -248,7 +252,7 @@ VALUES {','.join(values_parts)}"""
             csv_data = '\n'.join(csv_lines)
 
             # 使用INSERT FORMAT CSV进行批量插入
-            insert_query = (f"INSERT INTO {self.database}.points_data "
+            insert_query = (f"INSERT INTO {self.database}.{self.table_name} "
                             "(point_code, point_value, date_time, point_type, param_code) "
                             "FORMAT CSV")
 
@@ -533,6 +537,8 @@ def main():
   %(prog)s --list                            # 列出所有数据点
   %(prog)s --limit 10                        # 测试模式, 只处理前10个
   %(prog)s --file 2025070223 --dir /data     # 指定文件和目录
+  %(prog)s --table my_points_table           # 指定自定义表名
+  %(prog)s --database mydb --table mytable   # 指定数据库和表名
         """
     )
 
@@ -556,6 +562,8 @@ def main():
                         help='ClickHouse端口 (默认: 8123)')
     parser.add_argument('--database', default='ezhou',
                         help='数据库名称 (默认: ezhou)')
+    parser.add_argument('--table', default='points_data',
+                        help='表名称 (默认: points_data)')
 
     args = parser.parse_args()
 
@@ -566,7 +574,8 @@ def main():
             port=args.port,
             database=args.database,
             user='default',
-            password='er3HsdSE2dQIS^VI'
+            password='er3HsdSE2dQIS^VI',
+            table_name=args.table
         )
 
         # 如果只是列出数据点

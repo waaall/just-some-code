@@ -165,6 +165,7 @@ class HisDataParser:
         self._idx_cache_filepath = None  # 当前缓存的IDX文件路径
         self._idx_parsed = False  # IDX文件是否已解析并缓存
         self._point_info_cache = {}  # 数据点信息缓存
+        self._idx_binary_data = None  # IDX文件二进制数据缓存
 
         # HIS文件缓存优化
         self._his_cache_filepath = None  # 当前缓存的HIS文件路径
@@ -211,9 +212,10 @@ class HisDataParser:
         print(f"正在解析IDX文件: {idx_filepath}")
 
         try:
-            # 把文件读取到字节数组 - 对应C#代码
+            # 把文件读取到字节数组 - 对应C#代码，并缓存到内存
             with open(idx_filepath, 'rb') as f:
                 binary_data = f.read()
+                self._idx_binary_data = binary_data  # 缓存IDX文件二进制数据
 
             file_length = len(binary_data)  # 文件总长度
             print(f"IDX文件大小: {file_length} 字节")
@@ -360,6 +362,7 @@ class HisDataParser:
             # 清空缓存状态
             self._idx_parsed = False
             self._idx_cache_filepath = None
+            self._idx_binary_data = None
             return False
 
     def load_his_file_to_cache(self, his_filepath: str) -> bool:
@@ -610,9 +613,8 @@ class HisDataParser:
             target_index = point_info.point_index
             print(f"找到数据点: {point_name} (序号: {target_index}, 类型: {'AX' if point_info.point_type == 0 else 'DX'})")
 
-            # 将idx文件读到内存
-            with open(idx_filename, 'rb') as f:
-                idx_binary_data = f.read()
+            # 使用缓存的IDX二进制数据
+            idx_binary_data = self._idx_binary_data
 
             # 加载HIS文件到缓存 - 性能优化关键
             if not self.load_his_file_to_cache(his_filename):
@@ -635,7 +637,7 @@ class HisDataParser:
             point_all_data = []
             total_points = self.ax_points_num + self.dx_points_num
 
-            # 处理该数据点在所有30个时间块的数据
+            # 处理该数据点在所有30个时间块的数据(1个文件一小时, 2分钟一个块)
             for time_block in range(30):
                 try:
                     # 计算该点在该时间块的索引位置
@@ -696,6 +698,7 @@ class HisDataParser:
         self._point_info_cache.clear()
         self._idx_parsed = False
         self._idx_cache_filepath = None
+        self._idx_binary_data = None
 
         # 清空HIS文件缓存
         self._his_loaded = False

@@ -14,8 +14,8 @@ HIS文件批量处理器 - ClickHouse数据库批量导入工具
     支持的参数:
     --dir/-d: 数据文件目录 (默认: ./his-data)
     --method/-m: 插入方法 (values/csv, 默认: values)
-    --host: ClickHouse服务器地址 (默认: 192.168.50.30)
-    --port: ClickHouse端口 (默认: 8123)
+    --host: 服务器地址 (默认: 192.168.50.30)
+    --port: 服务器端口 (默认: 8123)
     --database: 数据库名称 (默认: ezhou)
     --log-dir: 日志文件目录 (默认: ./logs)
     --retry: 失败重试次数 (默认: 1)
@@ -89,8 +89,8 @@ class BatchHisProcessor:
 
     def __init__(self, data_dir: str = "./his-data", log_dir: str = "./logs",
                  method: str = "values", host: str = "192.168.50.30",
-                 port: int = 8123, database: str = "ezhou", retry: int = 1,
-                 target_files: List[str] = None, target_points: List[str] = None,
+                 port: int = 8123, database: str = "ezhou", table_name: str = "points_data",
+                 retry: int = 1, target_files: List[str] = None, target_points: List[str] = None,
                  max_workers: int = 1, point_threads: int = 1):
 
         self.data_dir = Path(data_dir).resolve()
@@ -99,6 +99,7 @@ class BatchHisProcessor:
         self.host = host
         self.port = port
         self.database = database
+        self.table_name = table_name
         self.retry = retry
         self.target_files = target_files  # 指定要处理的文件列表
         self.target_points = target_points  # 指定要处理的数据点列表
@@ -302,6 +303,7 @@ class BatchHisProcessor:
                 host=self.host,
                 port=self.port,
                 database=self.database,
+                table_name=self.table_name,
                 user='default',
                 password='er3HsdSE2dQIS^VI'
             )
@@ -578,6 +580,7 @@ def main():
   %(prog)s --files 2025070222 --points "p1"   # 处理指定文件的指定数据点
   %(prog)s --dir /data/his --method csv       # 指定目录和插入方法
   %(prog)s --host 192.168.1.100 --retry 2    # 指定服务器和重试次数
+  %(prog)s --database mydb --table mytable   # 指定数据库和表名
         """
     )
 
@@ -591,6 +594,8 @@ def main():
                         help='ClickHouse端口 (默认: 8123)')
     parser.add_argument('--database', default='ezhou',
                         help='数据库名称 (默认: ezhou)')
+    parser.add_argument('--table', default='points_data',
+                        help='表名称 (默认: points_data)')
     parser.add_argument('--log-dir', default='./logs',
                         help='日志文件目录 (默认: ./logs)')
     parser.add_argument('--retry', type=int, default=1,
@@ -636,6 +641,7 @@ def main():
             host=args.host,
             port=args.port,
             database=args.database,
+            table_name=args.table,
             retry=args.retry,
             target_files=args.files,
             target_points=target_points,
