@@ -1,11 +1,18 @@
 {
-    "data_dir": "./his-data",
-    "output_dir": "./csv-output",
-    "target_points": [],
-    "days": 1,
-    "start_date": "20250702",
+    "data_dir": "/Users/zhengxu/Downloads/20250812-13-his",
+    "output_dir": "/Users/zhengxu/Downloads/csv-output",
+    "target_points": [
+        "X08BYA38",
+        "IMP",
+        "MPIA2601",
+        "MPIA2602",
+        "MPIA2603",
+        "X03P117B2"
+    ],
+    "days": 2,
+    "start_date": "20250812",
     "max_workers": 4,
     "point_threads": 4,
     "csv_format": "detailed",
-    "description": "HIS文件批量CSV导出配置文件模板"
+    "description": "HIS文件批量CSV导出配置文件"
 }
