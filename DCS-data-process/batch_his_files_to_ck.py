@@ -71,10 +71,9 @@ from pathlib import Path
 # 导入HisToClickHouseParser类
 try:
     from his_to_clickhouse import HisToClickHouseParser
-except ImportError:
-    print("[ERROR] 无法导入his_to_clickhouse模块")
+except ImportError as e:
+    print(f"错误: 无法导入his_to_clickhouse模块: {e}")
     sys.exit(1)
-
 
 class BatchHisToCKProcessor:
     """
@@ -89,7 +88,7 @@ class BatchHisToCKProcessor:
 
     def __init__(self, data_dir: str = "./his-data", log_dir: str = "./logs",
                  method: str = "values", host: str = "192.168.50.30",
-                 port: int = 8123, database: str = "ezhou", table_name: str = "points_data",
+                 port: int = 8123, database: str = None, table_name: str = "points_data",
                  retry: int = 1, target_files: List[str] = None, target_points: List[str] = None,
                  max_workers: int = 1, point_threads: int = 1):
 
@@ -570,19 +569,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  %(prog)s                                    # 处理默认目录下所有文件 (单线程)
-  %(prog)s --threads 4                        # 使用4个线程并行处理文件
-  %(prog)s --point-threads 2                  # 单个文件内用2线程处理数据点
-  %(prog)s --threads 4 --point-threads 2      # 4线程处理文件,每文件2线程处理数据点
-  %(prog)s --listfiles                        # 列出所有可用文件
-  %(prog)s --files 2025070222 2025070221      # 处理指定文件
-  %(prog)s --points "point1,point2"           # 处理指定数据点
-  %(prog)s --files 2025070222 --points "p1"   # 处理指定文件的指定数据点
-  %(prog)s --dir /data/his --method csv       # 指定目录和插入方法
-  %(prog)s --host 192.168.1.100 --retry 2    # 指定服务器和重试次数
-  %(prog)s --database mydb --table mytable   # 指定数据库和表名
-        """
-    )
+python %(prog)s --database ezhou  # 默认选项运行
+python %(prog)s --database ezhou --dir /data/his --files 2025070222 2025070221 --points "point1,point2"  --table mytable --retry 2 --threads 4 --point-threads 2 --method csv
+        """)
 
     parser.add_argument('--dir', '-d', default='./his-data',
                         help='数据文件目录 (默认: ./his-data)')
@@ -592,8 +581,8 @@ def main():
                         help='ClickHouse服务器地址 (默认: 192.168.50.30)')
     parser.add_argument('--port', type=int, default=8123,
                         help='ClickHouse端口 (默认: 8123)')
-    parser.add_argument('--database', default='ezhou',
-                        help='数据库名称 (默认: ezhou)')
+    parser.add_argument('--database', required=True,
+                        help='数据库名称 (必须指定)')
     parser.add_argument('--table', default='points_data',
                         help='表名称 (默认: points_data)')
     parser.add_argument('--log-dir', default='./logs',

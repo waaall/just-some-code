@@ -52,8 +52,8 @@ from collections import defaultdict
 # 导入HisDataParser类
 try:
     from parse_his_data import HisDataParser, PointDataStruct
-except ImportError:
-    print("[ERROR] 无法导入parse_his_data模块")
+except ImportError as e:
+    print(f"错误: 无法导入parse_his_data模块: {e}")
     sys.exit(1)
 
 
