@@ -151,66 +151,19 @@ class FileEncodingFixer:
 
         # 标准化编码名称
         self._sys_encoding_map = {
-                            # ASCII 相关
-                            'ascii': 'ascii',
+                            # ASCII 相关 是UTF8的子集, 无需转换, 但很多编码如windows-1252等会被误判
                             'us-ascii': 'ascii',
-                            'ansi_x3.4-1968': 'ascii',
-                            
+
                             # UTF 系列
                             'utf-8': 'utf-8',
-                            'utf8': 'utf-8',
                             'utf-16': 'utf-16',
-                            'utf16': 'utf-16',
                             'utf-16le': 'utf-16le',
                             'utf-16be': 'utf-16be',
                             'utf-32': 'utf-32',
-                            'utf32': 'utf-32',
-                            
-                            # ISO 系列
-                            'iso-8859-1': 'latin1',
-                            'iso8859-1': 'latin1',
-                            'latin-1': 'latin1',
-                            'latin1': 'latin1',
-                            'iso-8859-2': 'iso-8859-2',
-                            'iso-8859-15': 'iso-8859-15',
-                            
-                            # Windows 代码页
-                            'windows-1252': 'windows-1252',
-                            'cp1252': 'windows-1252',
-                            'windows-1251': 'windows-1251',
-                            'cp1251': 'windows-1251',
-                            'windows-1250': 'windows-1250',
-                            'cp1250': 'windows-1250',
-                            
-                            # 中文编码
-                            'gb2312': 'gb2312',
-                            'gb18030': 'gb18030',
-                            'gbk': 'gbk',
-                            'hz-gb-2312': 'hz',
-                            
-                            # 繁体中文
-                            'big5': 'big5',
-                            'big5-hkscs': 'big5hkscs',
-                            
-                            # 日文编码
-                            'shift_jis': 'shift_jis',
-                            'shiftjis': 'shift_jis',
-                            'sjis': 'shift_jis',
-                            'euc-jp': 'euc-jp',
-                            'eucjp': 'euc-jp',
-                            'iso-2022-jp': 'iso-2022-jp',
-                            
-                            # 韩文编码
-                            'euc-kr': 'euc-kr',
-                            'euckr': 'euc-kr',
-                            'korean': 'euc-kr',
-                            'ks_c_5601-1987': 'euc-kr',
-                            
-                            # 其他常见编码
-                            'koi8-r': 'koi8-r',
-                            'koi8-u': 'koi8-u',
-                            'mac-roman': 'mac-roman',
-                            'macroman': 'mac-roman',
+
+                            # ISO 系列: gbk等中,繁,日等可能会被误判为iso-8859-1
+                            'iso-8859-1': 'gbk',
+                            'iso8859-1': 'gbk',
         }
         # 置信度阈值
         self.confidence_threshold = 0.7
