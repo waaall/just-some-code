@@ -21,6 +21,7 @@ class zxPackageManager:
             'pandas',
             'ffmpy',
             'requests',
+            'pymysql',
             'urllib3',
             'openpyxl',
             'pyside6',
@@ -35,13 +36,15 @@ class zxPackageManager:
             'jupyter',
             'yt-dlp',
             'pdf2zh',
-            'PyMuPDF',
             'markdown',
             'beautifulsoup4',
             'neurokit2',
             'PyWavelets',
             'ujson',
-            'docker'
+            'docker',
+            'onnx',
+            'openai',
+            'huggingface-hub',
         ]
 
     def install_packages(self):
