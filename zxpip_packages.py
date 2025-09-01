@@ -45,6 +45,7 @@ class zxPackageManager:
             'onnx',
             'openai',
             'huggingface-hub',
+            'Cython'
         ]
 
     def install_packages(self):
