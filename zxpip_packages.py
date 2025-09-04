@@ -10,6 +10,7 @@ class zxPackageManager:
         # 列出需要安装或更新的库
         self.required_packages = [
             'charset_normalizer',
+            'pipdeptree',
             'tqdm',
             'validators',
             'pyserial',
