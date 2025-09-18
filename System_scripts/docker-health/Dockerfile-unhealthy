@@ -1,0 +1,7 @@
+FROM alpine:3.21.4
+
+# 健康检查永远失败
+HEALTHCHECK CMD exit 1
+
+# 每秒输出一行日志 - 使用JSON格式避免信号处理问题
+CMD ["sh", "-c", "i=0; while true; do echo \"$(date +%Y-%m-%dT%H:%M:%S) test-log line $i\"; i=$((i+1)); sleep 1; done"]
