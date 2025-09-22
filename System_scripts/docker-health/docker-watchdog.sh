@@ -1,5 +1,13 @@
 #!/bin/sh
 
+# ============================================
+# Docker 守护进程脚本
+# 监测不健康的 Docker 容器，收集日志和资源使用情况; 并尝试重启容器
+# 包括一个主循环和两个辅助函数: 
+#   collect_container_logs 调用 collect_container_stats
+# ============================================
+
+
 # # 确保脚本在遇到错误时退出
 # set -euo pipefail
 
@@ -14,6 +22,60 @@ mkdir -p "$LOG_DIR"
 # 日志函数
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [Docker Watchdog] $1"
+}
+
+# 收集容器资源使用情况函数
+collect_container_stats() {
+    local container_id="$1"
+    local stats_file="$2"
+    
+    log "收集容器 $container_id 的资源使用情况..."
+    
+    # 获取容器状态信息
+    local container_info=$(docker inspect "$container_id" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$container_info" ]; then
+        # 使用更健壮的方式提取信息
+        local created=$(echo "$container_info" | docker inspect --format='{{.Created}}' "$container_id" 2>/dev/null || echo "unknown")
+        local container_status=$(echo "$container_info" | docker inspect --format='{{.State.Status}}' "$container_id" 2>/dev/null || echo "unknown")
+        local restart_count=$(echo "$container_info" | docker inspect --format='{{.RestartCount}}' "$container_id" 2>/dev/null || echo "0")
+        
+        {
+            echo "=============== 容器基本信息 ==============="
+            echo "创建时间: $created"
+            echo "当前状态: $container_status" 
+            echo "重启次数: $restart_count"
+            echo ""
+        } >> "$stats_file"
+    else
+        {
+            echo "=============== 容器基本信息 ==============="
+            echo "警告：无法获取容器基本信息"
+            echo ""
+        } >> "$stats_file"
+    fi
+    
+    # 获取实时资源使用情况（仅获取一次快照）
+    {
+        echo "=============== 资源使用情况 ==============="
+    } >> "$stats_file"
+    
+    local stats_output=$(docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}" "$container_id" 2>/dev/null)
+    
+    if [ $? -eq 0 ] && [ -n "$stats_output" ]; then
+        echo "$stats_output" >> "$stats_file"
+    else
+        echo "警告：无法获取容器资源使用情况" >> "$stats_file"
+    fi
+    echo "" >> "$stats_file"
+    
+    # 获取容器进程信息
+    local processes=$(docker top "$container_id" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$processes" ]; then
+        echo "$processes" >> "$stats_file"
+    else
+        echo "警告：无法获取容器进程信息" >> "$stats_file"
+    fi
+    echo "" >> "$stats_file"
 }
 
 # 收集容器日志函数
@@ -40,6 +102,14 @@ collect_container_logs() {
         echo ""
     } > "$log_file"
     
+    # 先收集资源使用情况
+    collect_container_stats "$container_id" "$log_file"
+    
+    # 然后收集容器日志
+    {
+        echo "================= 容器日志 ================="
+    } >> "$log_file"
+    
     # 收集容器日志
     if docker logs --tail "$log_lines" "$container_id" >> "$log_file" 2>&1; then
         log "容器 $container_id 日志已保存到: $log_file"
@@ -49,6 +119,7 @@ collect_container_logs() {
     fi
 }
 
+# "主函数"
 log "守护进程已启动，开始监测容器健康状态..."
 log "配置参数 - 检查间隔: ${CHECK_INTERVAL}秒, 日志行数: $LOG_LINES, 日志目录: $LOG_DIR"
 
