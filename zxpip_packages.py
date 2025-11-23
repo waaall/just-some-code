@@ -12,6 +12,7 @@ class zxPackageManager:
             'charset_normalizer',
             'pipdeptree',
             'tqdm',
+            'pypdf',
             'validators',
             'pyserial',
             'pyinstaller',
