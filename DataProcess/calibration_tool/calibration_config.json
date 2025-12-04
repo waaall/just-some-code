@@ -1,0 +1,12 @@
+{
+  "input_min": 49.8,
+  "input_max": 50.2,
+  "output_min": 4.0,
+  "output_max": 20.0,
+  "code_min": 5242,
+  "code_max": 26213,
+  "max_avg_error": 0.3,
+  "offset_limit": 2000,
+  "gain_min": 5000,
+  "gain_max": 15000
+}
