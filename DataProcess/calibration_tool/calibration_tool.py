@@ -1,17 +1,30 @@
 #!/usr/bin/env python3
 """
 线性输入输出校准工具
-用于自动生成校准系数，支持两点校准法(零点偏移 + 满量程偏移 + 增益)
+用于自动生成校准系数（零点偏移 + 增益）
 
 基本流程:
 1. 从 JSON 读取通道配置(输入/输出量程、DAC 码值范围等)
-2. 从 CSV 读取测试数据(input_value / measured_output，若包含 expected_output 列则直接使用，
-   否则按配置推导理论期望值)
+2. 从 CSV 读取测试数据:
+   - input_value + measured_output(可选 expected_output，默认按配置推导)
+   - 或 code/raw_code + measured_output(可选 expected_output，直接使用码值)
 3. 拟合“码值 → 实测输出”的线性模型:I_meas = a_m * code + b_m
 4. 根据配置计算理论模型:I_exp = a_t * code + b_t
 5. 解析求出线性变换 code_cal = α * code + β，并映射为 zero_offset / gain_10k
-6. 若线性模式平均误差 > max_avg_error，则启用两点校准(zero + span + gain)进行数值优化
-7. 输出校准系数、C 代码初始化、误差/线性度指标，并绘图保存
+6. 输出校准系数、C 代码初始化、误差/线性度指标，并绘图保存
+
+使用示例:
+python calibration_tool.py \
+  --config calibration_config.json \
+  --data calibration_data.csv \
+  --output calibration_result.png \
+  --log calibration_result.log \
+  --compare-coefs prev_calib.json \
+  --comparison-csv comparison_output.csv
+
+注意:
+- 若测试数据csv文件中同时提供 `input_value` 与 `code/raw_code`
+- 会优先使用code/码值列；`input_value` 仅作为参考。
 """
 
 import argparse
@@ -45,16 +58,19 @@ class CalibrationVisualizer:
         plt.rcParams["font.sans-serif"] = ["SimHei", "Arial Unicode MS", "DejaVu Sans"]
         plt.rcParams["axes.unicode_minus"] = False
 
+    def _axis_label(self) -> str:
+        return "输入值" if self.data.data_mode == "input" else "码值"
+
     def _calibrate_outputs(
         self, coef: CalibrationCoefficients
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """返回输入、期望、实测与当前系数下的校准输出"""
         inputs, expected, measured = self.data.get_arrays()
+        raw_codes = self.data.get_raw_codes()
 
         calibrated = []
-        for inp in inputs:
-            raw_code = self.data.input_to_raw_code(inp)
-            cal_code = self.calibrator.apply_calibration(raw_code, coef)
+        for raw_code in raw_codes:
+            cal_code = self.calibrator.apply_calibration(int(round(raw_code)), coef)
             cal_out = self.calibrator._predict_output_from_code(cal_code)
             calibrated.append(cal_out)
 
@@ -79,16 +95,8 @@ class CalibrationVisualizer:
     ) -> None:
         """绘制校准前后曲线和误差对比"""
 
-        inputs, expected, measured = self.data.get_arrays()
-
-        # 计算校准后的输出(用拟合的硬件模型预测)
-        calibrated = []
-        for inp in inputs:
-            raw_code = self.data.input_to_raw_code(inp)
-            cal_code = self.calibrator.apply_calibration(raw_code, coef)
-            cal_out = self.calibrator._predict_output_from_code(cal_code)
-            calibrated.append(cal_out)
-        calibrated = np.array(calibrated, dtype=float)
+        inputs, expected, measured, calibrated = self._calibrate_outputs(coef)
+        axis_label = self._axis_label()
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -97,11 +105,41 @@ class CalibrationVisualizer:
         ax1.plot(inputs, measured, "r--s", label="实测曲线", linewidth=1.5)
         ax1.plot(inputs, calibrated, "g-.^", label="校准后曲线", linewidth=1.5)
 
-        ax1.set_xlabel("输入值", fontsize=12)
+        ax1.set_xlabel(axis_label, fontsize=12)
         ax1.set_ylabel("输出值", fontsize=12)
         ax1.set_title("校准曲线对比", fontsize=14)
         ax1.grid(True, alpha=0.3)
         ax1.legend(fontsize=10)
+
+        # 添加鼠标悬停显示功能
+        annot = ax1.annotate("", xy=(0, 0), xytext=(20, 20),
+                            textcoords="offset points",
+                            bbox=dict(boxstyle="round", fc="yellow", alpha=0.8),
+                            arrowprops=dict(arrowstyle="->"))
+        annot.set_visible(False)
+
+        def on_hover(event):
+            """鼠标移动事件处理:显示理论曲线和校准后曲线的y值"""
+            if event.inaxes == ax1:
+                x = event.xdata
+                if x is not None and len(inputs) > 1:
+                    # 使用线性插值计算对应的y值
+                    y_expected = np.interp(x, inputs, expected)
+                    y_calibrated = np.interp(x, inputs, calibrated)
+
+                    # 更新注释内容
+                    text = f"{axis_label}: {x:.3f}\n理论: {y_expected:.3f}\n校准: {y_calibrated:.3f}"
+                    annot.xy = (x, y_calibrated)
+                    annot.set_text(text)
+                    annot.set_visible(True)
+                    fig.canvas.draw_idle()
+            else:
+                if annot.get_visible():
+                    annot.set_visible(False)
+                    fig.canvas.draw_idle()
+
+        # 连接鼠标移动事件
+        fig.canvas.mpl_connect("motion_notify_event", on_hover)
 
         # 右图:误差柱状图
         err_before = measured - expected
@@ -132,18 +170,10 @@ class CalibrationVisualizer:
         else:
             plt.close(fig)
 
-    def print_analysis_report(self, coef: CalibrationCoefficients, is_linear: bool) -> None:
+    def print_analysis_report(self, coef: CalibrationCoefficients) -> None:
         """打印详细分析报告(使用 logger 输出)"""
 
-        inputs, expected, measured = self.data.get_arrays()
-
-        calibrated = []
-        for inp in inputs:
-            raw_code = self.data.input_to_raw_code(inp)
-            cal_code = self.calibrator.apply_calibration(raw_code, coef)
-            cal_out = self.calibrator._predict_output_from_code(cal_code)
-            calibrated.append(cal_out)
-        calibrated = np.array(calibrated, dtype=float)
+        inputs, expected, measured, calibrated = self._calibrate_outputs(coef)
 
         analyzer = CalibrationAnalyzer()
 
@@ -162,7 +192,7 @@ class CalibrationVisualizer:
         self.logger.info("校准分析报告")
         self.logger.info("=" * 60)
 
-        self.logger.info(f"\n校准模式: {'线性校准(zero + gain)' if is_linear else '两点校准(zero + span + gain)'}")
+        self.logger.info(f"\n校准模式: 线性校准(zero + gain)")
 
         self.logger.info("\n建议 C 代码(示例变量名 calib):")
         self.logger.info(coef.to_c_code("calib"))
@@ -190,11 +220,17 @@ class CalibrationVisualizer:
         base_label: str,
         base_coef: CalibrationCoefficients,
         others: List[Tuple[str, CalibrationCoefficients]],
+        save_csv: Optional[str] = None,
     ) -> None:
         """对比不同校准系数的参数与误差差异(使用 logger 输出)"""
+        # 保存对比预测数据到 CSV (即使没有额外系数也可以保存)
+        if save_csv:
+            self._save_comparison_csv(save_csv, base_label, base_coef, others)
+
+        # 如果没有额外系数，不打印对比表格
         if not others:
             return
-        
+
         # 只为手动导入的配置打印详细数据对比
         for name, coef in others:
             self.logger.info(f"\n手动导入 {name} 校准系数:")
@@ -240,7 +276,8 @@ class CalibrationVisualizer:
         title = "\n详细数据对比:" if label is None else f"\n详细数据对比 - {label}:"
         self.logger.info(title)
 
-        header = f"{'Input':>10} {'Expected':>10} {'Measured':>10} {'Calibrated':>12} {'Err_Before':>12} {'Err_After':>12}"
+        axis_label = "Input" if self.data.data_mode == "input" else "Code"
+        header = f"{axis_label:>10} {'Expected':>10} {'Measured':>10} {'Calibrated':>12} {'Err_Before':>12} {'Err_After':>12}"
         self.logger.info(header)
         self.logger.info("-" * len(header))
         for i in range(len(inputs)):
@@ -251,6 +288,81 @@ class CalibrationVisualizer:
                 f"{calibrated[i]:12.3f} {eb:12.4f} {ea:12.4f}"
             )
         self.logger.info("-" * len(header))
+
+    def _infer_input_precision(self) -> float:
+        """从测量数据中推断 input 的精度"""
+        inputs, _, _ = self.data.get_arrays()
+        if len(inputs) == 0:
+            return 0.001  # 默认精度
+
+        # 将 float 数组转换为字符串列表，复用 CalibrationData 的精度推断方法
+        input_str_list = [f"{inp:.10f}".rstrip('0').rstrip('.') for inp in inputs]
+        return CalibrationData._infer_measurement_resolution(input_str_list)
+
+    def _save_comparison_csv(
+        self,
+        csv_path: str,
+        base_label: str,
+        base_coef: CalibrationCoefficients,
+        others: List[Tuple[str, CalibrationCoefficients]],
+    ) -> None:
+        """保存对比预测数据到 CSV 文件(最多300行，按头中尾采样)"""
+        import csv
+
+        # 推断 input 的精度
+        input_precision = self._infer_input_precision()
+
+        # 生成完整的 input 序列
+        cfg = self.data.config
+        input_min = cfg.input_min
+        input_max = cfg.input_max
+
+        # 计算总行数
+        total_rows = int((input_max - input_min) / input_precision) + 1
+
+        # 生成采样点
+        if total_rows <= 300:
+            # 全部输出
+            input_values = np.arange(input_min, input_max + input_precision/2, input_precision)
+        else:
+            # 头100 + 中100 + 尾100
+            head = np.arange(input_min, input_min + 100 * input_precision, input_precision)
+            mid_start = input_min + (input_max - input_min) / 2 - 50 * input_precision
+            mid = np.arange(mid_start, mid_start + 100 * input_precision, input_precision)
+            tail = np.arange(input_max - 99 * input_precision, input_max + input_precision/2, input_precision)
+            input_values = np.concatenate([head, mid, tail])
+
+        # 准备 CSV 数据
+        rows = []
+        for inp in input_values:
+            row = {"Input": f"{inp:.3f}"}
+
+            # 计算期望输出
+            expected = self.data.expected_output_from_input(inp)
+            row["Expected"] = f"{expected:.3f}"
+
+            # 计算 base_coef 的输出
+            raw_code = self.data.input_to_raw_code(inp)
+            cal_code = self.calibrator.apply_calibration(raw_code, base_coef)
+            cal_out = self.calibrator._predict_output_from_code(cal_code)
+            row[base_label] = f"{cal_out:.3f}"
+
+            # 计算其他系数的输出
+            for name, coef in others:
+                cal_code = self.calibrator.apply_calibration(raw_code, coef)
+                cal_out = self.calibrator._predict_output_from_code(cal_code)
+                row[name] = f"{cal_out:.3f}"
+
+            rows.append(row)
+
+        # 写入 CSV
+        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ["Input", "Expected", base_label] + [name for name, _ in others]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        self.logger.info(f"对比预测数据已保存到: {csv_path}")
 
 
 # ===================== 命令行入口 =====================
@@ -288,6 +400,11 @@ def main() -> None:
         nargs="+",
         type=Path,
         help="额外校准系数 JSON 文件列表(字段 zero_offset/span_offset/gain_10k)，与本次计算结果对比",
+    )
+    parser.add_argument(
+        "--comparison-csv",
+        type=Path,
+        help="保存系数对比预测数据的 CSV 文件路径(最多300行，按头中尾采样)",
     )
     parser.add_argument(
         "--no-show",
@@ -328,6 +445,8 @@ def main() -> None:
             code_min=0x147A,   # 5242，对应 4mA
             code_max=0x6665,   # 26213，对应 20mA
             max_avg_error=0.3,
+            code_saturation_min=0,
+            code_saturation_max=32767,
         )
         default_cfg.to_json(str(args.config))
         logger.info(f"已创建默认配置文件: {args.config}")
@@ -337,14 +456,15 @@ def main() -> None:
     if not args.data.exists():
         raise FileNotFoundError(
             f"未找到测量数据文件: {args.data}\n"
-            f"请提供包含列 input_value,measured_output(可选 expected_output)的 CSV 文件。"
+            f"请提供包含列 input_value,measured_output(可选 expected_output)或 "
+            f"code/raw_code,measured_output(可选 expected_output)的 CSV 文件。"
         )
 
     data = CalibrationData(config)
     data.load_from_csv(str(args.data))
 
     calibrator = LinearCalibrator(data)
-    coef, is_linear = calibrator.auto_calibrate()
+    coef = calibrator.calculate_linear_calibration()
     extra_coefs: List[Tuple[str, CalibrationCoefficients]] = []
     if args.compare_coefs:
         for path in args.compare_coefs:
@@ -354,8 +474,12 @@ def main() -> None:
             extra_coefs.append((path.stem, loaded))
 
     visualizer = CalibrationVisualizer(data, calibrator)
-    visualizer.print_analysis_report(coef, is_linear)
-    visualizer.print_coefficient_comparison("auto", coef, extra_coefs)
+    visualizer.print_analysis_report(coef)
+
+    # 准备对比预测 CSV 路径
+    comparison_csv_path = str(args.comparison_csv) if args.comparison_csv else None
+    visualizer.print_coefficient_comparison("auto", coef, extra_coefs, save_csv=comparison_csv_path)
+
     visualizer.plot_calibration_curves(
         coef,
         save_path=str(args.output),

@@ -8,5 +8,7 @@
   "max_avg_error": 0.3,
   "offset_limit": 2000,
   "gain_min": 5000,
-  "gain_max": 15000
+  "gain_max": 15000,
+  "code_saturation_min": 0,
+  "code_saturation_max": 32767
 }

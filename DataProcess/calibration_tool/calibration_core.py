@@ -3,18 +3,21 @@
 核心模块:数据结构与校准算法
 
 包含:
-- CalibrationConfig / CalibrationData / CalibrationCoefficients / MeasurementPoint
-- 线性校准与两点校准(LinearCalibrator)
-- 校准质量评估(CalibrationAnalyzer)
+- 数据结构
+    - CalibrationConfig
+    - CalibrationData
+    - CalibrationCoefficients
+    - MeasurementPoint
+- 线性校准类(LinearCalibrator): 注意校准的过程和系数的约定
+- 校准质量评估类(CalibrationAnalyzer)
 """
 
 import csv
 import json
 from dataclasses import dataclass, asdict
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
-from scipy.optimize import minimize
 
 
 # ===================== 数据结构 =====================
@@ -53,19 +56,16 @@ class CalibrationCoefficients:
 @dataclass
 class MeasurementPoint:
     """单个测量数据点"""
-    input_value: float      # 输入值(如频率 Hz)
-    expected_output: float  # 期望输出(如电流 mA，可由配置推导)
-    measured_output: float  # 实际测量输出(如电流 mA)
+    input_value: Optional[float]      # 输入值(如频率 Hz)，若直接提供码值则为 None
+    expected_output: float            # 期望输出(如电流 mA，可由配置推导)
+    measured_output: float            # 实际测量输出(如电流 mA)
+    raw_code: Optional[int] = None    # 若 CSV 直接提供码值则使用该字段
 
 
 @dataclass
 class CalibrationConfig:
     """
     校准配置参数
-
-    注意:
-    - code_min / code_max 必须与 C 侧 ma_output.h 中的
-      MA_OUT_DAC_4MA / MA_OUT_DAC_20MA 完全一致
     """
     input_min: float            # 输入最小值
     input_max: float            # 输入最大值
@@ -77,12 +77,19 @@ class CalibrationConfig:
     offset_limit: int = 2000    # 允许的偏移量范围(码值)
     gain_min: int = 5000        # 最小增益(0.5 倍)
     gain_max: int = 15000       # 最大增益(1.5 倍)
+    code_saturation_min: int = 0       # 码值饱和下限(校准后饱和下限)
+    code_saturation_max: int = 32767   # 码值饱和上限(校准后饱和上限)
 
     @classmethod
     def from_json(cls, json_path: str) -> "CalibrationConfig":
         """从 JSON 文件加载配置"""
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # 兼容旧字段名 dac_code_min/dac_code_max
+        if "code_saturation_min" not in data and "dac_code_min" in data:
+            data["code_saturation_min"] = data.pop("dac_code_min")
+        if "code_saturation_max" not in data and "dac_code_max" in data:
+            data["code_saturation_max"] = data.pop("dac_code_max")
         return cls(**data)
 
     def to_json(self, json_path: str) -> None:
@@ -97,14 +104,18 @@ class CalibrationData:
     def __init__(self, config: CalibrationConfig) -> None:
         self.config = config
         self.measurements: List[MeasurementPoint] = []
+        self.measurement_resolution: float = 0.0  # 测试分辨率
+        self.flex_zone: float = 0.0               # 分辨率的一半，用于误差容忍
+        self.data_mode: str = "input"             # 'input' 或 'code'
 
     def load_from_csv(self, csv_path: str) -> None:
         """
         从 CSV 文件加载测量数据
 
-        CSV 支持两种格式:
+        CSV 支持三种格式:
         1) input_value, measured_output(按配置推导期望值)
         2) input_value, expected_output, measured_output(显式提供期望值)
+        3) code/raw_code, measured_output(可选 expected_output)，直接使用码值
         """
         self.measurements.clear()
         with open(csv_path, "r", encoding="utf-8") as f:
@@ -113,37 +124,101 @@ class CalibrationData:
                 raise ValueError("CSV 文件缺少表头")
 
             field_set = set(reader.fieldnames)
-            required = {"input_value", "measured_output"}
-            missing = required - field_set
-            if missing:
-                raise ValueError(f"CSV 缺少必要列: {', '.join(sorted(missing))}")
+            if "measured_output" not in field_set:
+                raise ValueError("CSV 缺少必要列: measured_output")
+
+            has_input = "input_value" in field_set
+            code_field = None
+            if "code" in field_set:
+                code_field = "code"
+            elif "raw_code" in field_set:
+                code_field = "raw_code"
+
+            if not has_input and code_field is None:
+                raise ValueError("CSV 缺少必要列: input_value 或 code/raw_code")
 
             has_expected = "expected_output" in field_set
+            self.data_mode = "code" if code_field else "input"
+            measured_raw_list: List[str] = []
 
             for row in reader:
-                input_value = float(row["input_value"])
-                measured_output = float(row["measured_output"])
+                measured_raw = row["measured_output"]
+                measured_output = float(measured_raw)
+                measured_raw_list.append(str(measured_raw))
 
                 exp_raw = row.get("expected_output") if has_expected else None
-                if exp_raw is not None and str(exp_raw).strip() != "":
-                    expected_output = float(exp_raw)
+                raw_code: Optional[int] = None
+                input_value: Optional[float] = None
+
+                if code_field:
+                    raw_txt = row.get(code_field, "").strip()
+                    if raw_txt == "":
+                        raise ValueError("CSV 行缺少 code/raw_code 值")
+                    raw_code = int(round(float(raw_txt)))
+
+                    if has_input:
+                        inp_txt = row.get("input_value", "").strip()
+                        input_value = float(inp_txt) if inp_txt != "" else None
+
+                    if exp_raw is not None and str(exp_raw).strip() != "":
+                        expected_output = float(exp_raw)
+                    else:
+                        expected_output = self.expected_output_from_code(raw_code)
                 else:
-                    expected_output = self.expected_output_from_input(input_value)
+                    input_txt = row.get("input_value", "").strip()
+                    if input_txt == "":
+                        raise ValueError("CSV 行缺少 input_value 值")
+                    input_value = float(input_txt)
+                    raw_code = self.input_to_raw_code(input_value)
+
+                    if exp_raw is not None and str(exp_raw).strip() != "":
+                        expected_output = float(exp_raw)
+                    else:
+                        expected_output = self.expected_output_from_input(input_value)
 
                 self.measurements.append(
                     MeasurementPoint(
                         input_value=input_value,
                         expected_output=expected_output,
                         measured_output=measured_output,
+                        raw_code=raw_code,
                     )
                 )
 
+        # 根据测量值文本推断分辨率（例: 3.8 → 0.1mA），flex_zone = 分辨率 / 2
+        self.measurement_resolution = self._infer_measurement_resolution(measured_raw_list)
+        self.flex_zone = self.measurement_resolution * 0.5
+
     def get_arrays(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """返回 numpy 数组格式的数据 (inputs, expected, measured)"""
-        inputs = np.array([m.input_value for m in self.measurements], dtype=float)
-        expected = np.array([m.expected_output for m in self.measurements], dtype=float)
-        measured = np.array([m.measured_output for m in self.measurements], dtype=float)
-        return inputs, expected, measured
+        inputs: List[float] = []
+        expected: List[float] = []
+        measured: List[float] = []
+
+        for m in self.measurements:
+            if self.data_mode == "code":
+                if m.raw_code is not None:
+                    inputs.append(float(m.raw_code))
+                elif m.input_value is not None:
+                    inputs.append(float(m.input_value))
+                else:
+                    raise ValueError("测量数据缺少 input_value/raw_code")
+            else:
+                if m.input_value is not None:
+                    inputs.append(float(m.input_value))
+                elif m.raw_code is not None:
+                    inputs.append(float(m.raw_code))
+                else:
+                    raise ValueError("测量数据缺少 input_value/raw_code")
+
+            expected.append(float(m.expected_output))
+            measured.append(float(m.measured_output))
+
+        return (
+            np.array(inputs, dtype=float),
+            np.array(expected, dtype=float),
+            np.array(measured, dtype=float),
+        )
 
     def input_to_raw_code(self, input_value: float) -> int:
         """输入值映射到理论 DAC 码值(线性插值 + 饱和)"""
@@ -159,8 +234,16 @@ class CalibrationData:
 
     def get_raw_codes(self) -> np.ndarray:
         """将所有输入值映射为对应的理论原始码值数组"""
-        inputs, _, _ = self.get_arrays()
-        return np.array([self.input_to_raw_code(v) for v in inputs], dtype=float)
+        codes: List[float] = []
+        for m in self.measurements:
+            if m.raw_code is not None:
+                codes.append(float(m.raw_code))
+            elif m.input_value is not None:
+                codes.append(float(self.input_to_raw_code(m.input_value)))
+            else:
+                raise ValueError("测量数据缺少 input_value/raw_code")
+
+        return np.array(codes, dtype=float)
 
     def fit_code_to_measured_model(self) -> Tuple[float, float]:
         """
@@ -182,7 +265,7 @@ class CalibrationData:
         a, b = np.polyfit(codes, measured, 1)
         return float(a), float(b)
 
-    def code_to_output_theoretical(self, code: float) -> float:
+    def expected_output_from_code(self, code: float) -> float:
         """理论上 code -> 输出值 的线性关系(仅由配置决定)"""
         cfg = self.config
         if code <= cfg.code_min:
@@ -195,7 +278,40 @@ class CalibrationData:
     def expected_output_from_input(self, input_value: float) -> float:
         """根据配置推导给定输入值对应的理论期望输出"""
         raw_code = self.input_to_raw_code(input_value)
-        return self.code_to_output_theoretical(raw_code)
+        return self.expected_output_from_code(raw_code)
+
+    @staticmethod
+    def _infer_measurement_resolution(raw_values: List[str]) -> float:
+        """
+        从测量值文本推断最小分辨率:
+        - 找到小数点后最后一个非零数字所在位数，得到分辨率(例: '3.8' → 1位 → 0.1)
+        - 若全为整数则返回 1.0
+        """
+        min_res = None
+        # 遍历所有测量值文本，分析小数位数以推断仪表分辨率
+        for raw in raw_values:
+            txt = str(raw).strip()
+            if not txt:
+                continue
+            # 判断是否有小数点
+            if "." in txt:
+                # 提取小数部分（例: "3.8" → "8", "12.450" → "450"）
+                _, right = txt.split(".", 1)
+                # 去除尾部的0（"450" → "45"），得到有效小数位
+                right_no_trailing = right.rstrip("0")
+                if right_no_trailing == "":
+                    decimals = 0  # "4.0" → 整数
+                else:
+                    decimals = len(right_no_trailing)  # "3.8" → 1位, "12.45" → 2位
+            else:
+                decimals = 0  # 无小数点，为整数
+
+            # 根据小数位数计算分辨率（1位 → 0.1, 2位 → 0.01）
+            res = 10.0 ** (-decimals) if decimals > 0 else 1.0
+            # 取所有值的最小分辨率（以最精细的为准）
+            min_res = res if min_res is None else min(min_res, res)
+
+        return min_res if min_res is not None else 0.1
 
 
 # ===================== 校准核心算法 =====================
@@ -208,44 +324,57 @@ class LinearCalibrator:
         self.config = data.config
         # 拟合得到 I_meas(code) = a_m * code + b_m
         self._code_to_measured = data.fit_code_to_measured_model()
+        self._flex_zone = data.flex_zone
 
     # ---- MCU 侧应保持一致的校准公式 ----
     def apply_calibration(self, raw_code: int, coef: CalibrationCoefficients) -> int:
         """
-        应用校准系数，模拟 MCU 侧的线性校准算法。
-
-        建议 C 侧实现完全一致的函数，例如:
-
-            static int ma_out_apply_calibration(int code, const Calib_t *c)
-            {
-                long tmp = (long)(code + c->span_offset) * c->gain_10k + 5000;
-                tmp /= 10000;
-                tmp += c->zero_offset;
-                if (tmp < 0) tmp = 0;
-                if (tmp > 32767) tmp = 32767;
-                return (int)tmp;
-            }
-
-        这里 Python 侧以相同公式进行模拟。
+        按 MCU 侧 ma_out_apply_calibration 的两点校准流程模拟：
+        1) 以 code_min/code_max 基准做零/满偏移
+        2) 再乘万分比增益
+        3) 按配置的码值饱和范围裁剪
         """
-        if raw_code <= 0:
-            return 0
+        sat_min = int(self.config.code_saturation_min)
+        sat_max = int(self.config.code_saturation_max)
+        if raw_code <= sat_min:
+            return sat_min
 
-        zero = int(coef.zero_offset)
-        span = int(coef.span_offset)
-        gain = int(coef.gain_10k)
+        # 提取配置参数：4mA 和 20mA 对应的 DAC 码值
+        code_min = int(self.config.code_min)    # 4mA 参考点
+        code_max = int(self.config.code_max)   # 20mA 参考点
+        span_code = code_max - code_min              # 原始量程
+        if span_code == 0:
+            return raw_code
 
-        tmp = (int(raw_code) + span) * gain + 5000  # 四舍五入
-        tmp //= 10000
-        tmp += zero
+        # 提取校准系数
+        zero = int(coef.zero_offset)  # 零点偏移（码值）
+        span = int(coef.span_offset)  # 满量程偏移（码值，通常为0）
+        gain = int(coef.gain_10k)     # 增益（万分比，10000 = 1.0倍）
 
-        if tmp < 0:
-            tmp = 0
-        max_code = max(self.config.code_min, self.config.code_max, 32767)
-        if tmp > max_code:
-            tmp = max_code
+        # Python // 对负数向下取整，C 的 / 向零截断；保持一致用 trunc
+        def _div_trunc(numer: int, denom: int) -> int:
+            return int(numer / denom)
 
-        return int(tmp)
+        # 步骤1: 两点校准 - 计算校准后的量程
+        # span_full = (校准后max点) - (校准后min点)
+        span_full = (code_max + span) - (code_min + zero)
+
+        # 步骤2: 线性缩放 - 按校准后量程重新映射码值
+        # scaled = (raw - code_min) * span_full / span_code
+        numerator = (int(raw_code) - code_min) * span_full
+        scaled = _div_trunc(numerator, span_code)
+        calibrated = scaled + (code_min + zero)  # 加上校准后的零点
+
+        # 步骤3: 增益调整
+        calibrated = _div_trunc(calibrated * gain, 10000)
+
+        # 步骤4: 饱和保护
+        if calibrated < sat_min:
+            calibrated = sat_min
+        if calibrated > sat_max:
+            calibrated = sat_max
+
+        return int(calibrated)
 
     def _predict_output_from_code(self, code: int) -> float:
         """使用实测拟合模型预测给定码值的输出"""
@@ -257,151 +386,73 @@ class LinearCalibrator:
 
     def calculate_linear_calibration(self) -> CalibrationCoefficients:
         """
-        计算线性校准系数(只调整 zero_offset 和 gain_10k)
+        计算线性校准系数(只调整 zero_offset 和 gain_10k)，解析解直接对应
+        MCU 的两点校准公式(固定 span_offset=0)。
 
-        思路:
-        - 实测模型:I_meas = a_m * code + b_m
-        - 理论模型:I_exp  = a_t * code + b_t
-        - 希望存在线性变换 code_cal = α * code + β，使得
+        推导:
+          I_meas(code) = a_m*code + b_m
+          I_exp(code)  = a_t*code + b_t
+          code_cal = G * [ (code-code_min)*(1 - z/S) + code_min + z ], 其中 z=zero_offset, G=gain
 
-              I_meas(code_cal) = I_exp(code)  对任意 code 成立
+          系数匹配得到:
+            a_m * G * (1 - z/S) = a_t
+            a_m * G * z * (1 + code_min/S) + b_m = b_t
 
-          即:
-
-              a_m*(α*code + β) + b_m = a_t*code + b_t
-
-          对比系数得到解析解:
-
-              α = a_t / a_m
-              β = (b_t - b_m) / a_m
-
-        然后映射到:
-
-            gain_10k ≈ α * 10000
-            zero_offset ≈ β
+          解:
+            z = (b_t - b_m) / [ a_t*(1 + code_min/S) + (b_t - b_m)/S ]
+            G = a_t / (a_m * (1 - z/S))
         """
         cfg = self.config
+        # 获取实测拟合模型: I_meas(code) = a_m * code + b_m
         a_m, b_m = self._code_to_measured
 
-        # 理论模型:code -> 期望输出
+        # 建立理论模型: I_exp(code) = a_t * code + b_t
         code_span = cfg.code_max - cfg.code_min
         if code_span == 0:
             raise ValueError("配置错误: code_max 不可等于 code_min")
 
+        # 计算理论模型的斜率和截距
         out_span = cfg.output_max - cfg.output_min
-        a_t = out_span / code_span
-        b_t = cfg.output_min - a_t * cfg.code_min
+        a_t = out_span / code_span      # 理论斜率
+        b_t = cfg.output_min - a_t * cfg.code_min  # 理论截距
 
+        # 准备解析解所需的参数
+        code_min = float(cfg.code_min)  # 4mA 参考点
+        S = float(code_span)      # 码值量程
+
+        # 极端情况处理: 实测斜率接近0（测量无响应）
         if abs(a_m) < 1e-12:
-            # 极端情况:实测斜率几乎为 0，退化为不调增益
-            alpha = 1.0
-            beta = 0.0
+            # 退化为默认系数（无校准）
+            gain_10k = 10000
+            zero_offset = 0
         else:
-            alpha = a_t / a_m
-            beta = (b_t - b_m) / a_m
+            # 解析求解零点偏移 z = (b_t - b_m) / [ a_t*(1 + code_min/S) + (b_t - b_m)/S ]
+            denom_z = a_t * (1.0 + code_min / S) + (b_t - b_m) / S
+            if abs(denom_z) < 1e-12:
+                zero = 0.0  # 分母为0时零点设为0
+            else:
+                zero = (b_t - b_m) / denom_z  # 零点偏移（浮点数）
 
-        gain_10k = int(round(alpha * 10000.0))
-        gain_10k = int(np.clip(gain_10k, cfg.gain_min, cfg.gain_max))
+            # 解析求解增益 G = a_t / (a_m * (1 - z/S))
+            if abs(1.0 - zero / S) < 1e-12:
+                gain = 1.0  # 分母为0时增益设为1
+            else:
+                gain = a_t / (a_m * (1.0 - zero / S))  # 增益（浮点数）
 
-        zero_offset = int(round(beta))
-        zero_offset = int(np.clip(zero_offset, -cfg.offset_limit, cfg.offset_limit))
+            # 转换为整数（万分比）
+            gain_10k = int(round(gain * 10000.0))  # 转为万分比整数
+            zero_offset = int(round(zero))         # 转为整数码值
 
+            # 约束限制（防止极端值）
+            gain_10k = int(np.clip(gain_10k, cfg.gain_min, cfg.gain_max))  # [5000, 15000]
+            zero_offset = int(np.clip(zero_offset, -cfg.offset_limit, cfg.offset_limit))  # [-2000, 2000]
+
+        # 返回校准系数（span_offset 固定为0）
         return CalibrationCoefficients(
             zero_offset=zero_offset,
             span_offset=0,
             gain_10k=gain_10k,
         )
-
-    def _calculate_avg_error(self, coef: CalibrationCoefficients) -> float:
-        """
-        根据当前系数计算“校准后平均绝对误差”
-
-        使用 I_meas(code_cal) 作为“校准后输出”，与 expected_output 对比。
-        """
-        inputs, expected, _ = self.data.get_arrays()
-        errors: List[float] = []
-
-        for i, inp in enumerate(inputs):
-            raw_code = self.data.input_to_raw_code(inp)
-            cal_code = self.apply_calibration(raw_code, coef)
-            cal_out = self._predict_output_from_code(cal_code)
-            errors.append(abs(cal_out - expected[i]))
-
-        return float(np.mean(errors))
-
-    def calculate_twopoint_calibration(self) -> CalibrationCoefficients:
-        """
-        计算两点校准系数(调整 zero_offset、span_offset 和 gain_10k)
-
-        仍然使用数值优化(scipy.optimize.minimize)最小化
-        “校准后平均绝对误差”，但初始值可以参考线性解析解。
-        """
-        inputs, expected, measured = self.data.get_arrays()
-        cfg = self.config
-
-        # 先用解析线性解作为初值的基础
-        linear_coef = self.calculate_linear_calibration()
-        init_zero = linear_coef.zero_offset
-        init_gain = linear_coef.gain_10k
-        init_span = 0
-
-        def objective(params: np.ndarray) -> float:
-            zero_offset, span_offset, gain_10k = params
-            coef = CalibrationCoefficients(
-                zero_offset=int(zero_offset),
-                span_offset=int(span_offset),
-                gain_10k=int(gain_10k),
-            )
-
-            err_sum = 0.0
-            for i, inp in enumerate(inputs):
-                raw_code = self.data.input_to_raw_code(inp)
-                cal_code = self.apply_calibration(raw_code, coef)
-                cal_out = self._predict_output_from_code(cal_code)
-                err_sum += abs(cal_out - expected[i])
-            return err_sum / len(inputs)
-
-        result = minimize(
-            objective,
-            x0=[init_zero, init_span, init_gain],
-            method="L-BFGS-B",
-            bounds=[
-                (-cfg.offset_limit, cfg.offset_limit),   # zero_offset
-                (-cfg.offset_limit, cfg.offset_limit),   # span_offset
-                (cfg.gain_min, cfg.gain_max),            # gain_10k
-            ],
-        )
-
-        zero_offset = int(result.x[0])
-        span_offset = int(result.x[1])
-        gain_10k = int(result.x[2])
-
-        return CalibrationCoefficients(
-            zero_offset=zero_offset,
-            span_offset=span_offset,
-            gain_10k=gain_10k,
-        )
-
-    def auto_calibrate(self) -> Tuple[CalibrationCoefficients, bool]:
-        """
-        自动校准:
-        1. 先尝试线性解析校准(zero + gain)
-        2. 若平均误差 <= max_avg_error，则采用线性校准
-        3. 否则使用两点校准(zero + span + gain)
-
-        返回:
-            (校准系数, 是否使用线性校准)
-        """
-        # 线性解析校准
-        linear_coef = self.calculate_linear_calibration()
-        linear_err = self._calculate_avg_error(linear_coef)
-
-        if linear_err <= self.config.max_avg_error:
-            return linear_coef, True
-
-        # 线性不满足要求，使用两点校准
-        twopoint_coef = self.calculate_twopoint_calibration()
-        return twopoint_coef, False
 
 
 # ===================== 分析与评估 =====================
@@ -449,4 +500,3 @@ class CalibrationAnalyzer:
         if ss_tot == 0:
             return 1.0
         return float(1.0 - ss_res / ss_tot)
-
