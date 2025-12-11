@@ -1,0 +1,55 @@
+{
+  "input_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_input.csv",
+  "output_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_output.csv",
+
+  "data_config": {
+    "data_label": "Current",
+    "data_unit": "mA",
+    "value_format": ".2f",
+    "input_column": {
+      "name": null,
+      "index": 3,
+      "scale_factor": 1.0
+    },
+    "output_column": {
+      "name": null,
+      "index": 1,
+      "scale_factor": 1.0
+    }
+  },
+
+  "alignment_config": {
+    "change_threshold": 0.04,
+    "threshold_unit": "mA",
+    "manual_time_offset_ms": 6300
+  },
+
+  "enable_alignment": true,
+  "aligned_output_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/out_aligned.csv",
+
+  "plot_config": {
+    "title_template": "{data_label} Compare (Input vs Output)",
+    "input_series_name": "Input (Source)",
+    "output_series_name": "Output (Measured)",
+    "y_axis_label": "{data_label} ({data_unit})",
+    "x_axis_label": "Time (s)",
+    "output_filename_template": "{data_label}_comparison_result.png",
+    "value_format": ".2f",
+
+    "figsize": [20, 6],
+    "data_min": null,
+    "data_max": null,
+    "time_min": 0.0,
+    "time_max": null,
+    "output_style": "both",
+    "input_color": "#1f77b4",
+    "output_color": "#ff7f0e",
+    "output_marker_size": 1,
+    "enable_cursor": true,
+    "dpi": 300,
+    "output_filename": "../../Tests/4-20mA测试/DEWE高精度测试/ma_comparison_result.png"
+  },
+
+  "save_static": true,
+  "show_interactive": true
+}
