@@ -255,7 +255,7 @@ class DataAlignment:
 # 测试代码
 if __name__ == '__main__':
     import os
-    from measure_data_parser import InputDataParser, OutputDataParser
+    from measure_data_parser import DataFormatParser
 
     print("=" * 60)
     print("测试时间对齐功能")
@@ -270,8 +270,8 @@ if __name__ == '__main__':
     else:
         # 解析数据
         print("\n1. 解析数据...")
-        input_data = InputDataParser.parse_csv(input_file)
-        output_data = OutputDataParser.parse_csv(output_file)
+        input_data = DataFormatParser.parse_csv(input_file, data_type='input')
+        output_data = DataFormatParser.parse_csv(output_file, data_type='output')
         print(f"   输入数据: {len(input_data.data_points)} 点")
         print(f"   输出数据: {len(output_data.data_points)} 点")
 

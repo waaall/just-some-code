@@ -57,8 +57,10 @@ python measure_plotter.py -i ../251209test200ms.csv -o ../251209test200ms-result
 ### 功能特性
 
 - **线性映射**：4-20mA ↔ 频率（可配置，默认 4-20mA 对应 49.8-50.2Hz）
+- **精度可调**：mA/频率输出四舍五入步进可设置（如 0.001mA、0.001Hz）
 - **输入转换**：频率输入 CSV → mA 输入 CSV
-- **输出转换**：mA 输出 CSV（0.1ms采样）→ 标准格式（每毫秒聚合）
+- **输出转换**：mA 输出 CSV（0.1ms采样）→ 标准格式（可配置聚合时间精度）
+- **输出频率转换**：标准 mA 输出 CSV → 频率 CSV（默认 0.001Hz）
 - **完全兼容**：转换后的文件可直接用于绘图和对齐
 
 ### 快速使用
@@ -67,23 +69,48 @@ python measure_plotter.py -i ../251209test200ms.csv -o ../251209test200ms-result
 
 ```bash
 # 使用默认映射（4-20mA ↔ 49.8-50.2Hz）
-python ma_data_converter.py convert-input \
+python liner_converter.py convert-input \
   -i input_freq.csv \
   -o input_ma.csv
 
 # 自定义映射范围
-python ma_data_converter.py convert-input \
+python liner_converter.py convert-input \
   -i input_freq.csv -o input_ma.csv \
   --ma-min 4 --ma-max 20 --freq-min 49.5 --freq-max 50.5
+
+# 指定 mA 输出精度（步进）
+python liner_converter.py convert-input \
+  -i input_freq.csv -o input_ma.csv \
+  --ma-precision 0.001
 ```
 
 #### 2. 转换 mA 输出为标准格式
 
 ```bash
-# 将 0.1ms 采样数据聚合为每毫秒一个值
-python ma_data_converter.py convert-output \
+# 将 0.1ms 采样数据聚合为每毫秒一个值（默认 1ms）
+python liner_converter.py convert-output \
   -i ma_output_raw.csv \
   -o output_ma_standard.csv
+
+# 指定聚合后的时间精度（如 100ms）
+python liner_converter.py convert-output \
+  -i ma_output_raw.csv \
+  -o output_ma_standard_100ms.csv \
+  --aggregate-ms 100
+
+# 指定聚合后 mA 精度（如 0.001mA）
+python liner_converter.py convert-output \
+  -i ma_output_raw.csv \
+  -o output_ma_standard.csv \
+  --ma-precision 0.001
+```
+
+#### 2.1 转换标准 mA 输出为频率 CSV
+
+```bash
+python liner_converter.py convert-output-freq \
+  -i output_ma_standard.csv \
+  -o output_freq_standard.csv
 ```
 
 #### 3. 绘制 mA 数据对比图
@@ -125,8 +152,10 @@ python measure_plotter.py \
   "ma_freq_mapping": {
     "ma_min": 4.0,
     "ma_max": 20.0,
-    "data_min": 49.8,
-    "data_max": 50.2
+    "freq_min": 49.8,
+    "freq_max": 50.2,
+    "ma_precision": 0.01,
+    "freq_precision": 0.001
   },
   "plot_config": {
     "data_min": 4.0,
@@ -137,7 +166,7 @@ python measure_plotter.py \
 
 ### 相关文件
 
-- `ma_data_converter.py` - 核心转换模块与 CLI（含线性映射、格式转换、毫秒聚合）
+- `liner_converter.py` - 核心转换模块与 CLI（含线性映射、格式转换、毫秒聚合）
 
 ### 线性映射公式
 

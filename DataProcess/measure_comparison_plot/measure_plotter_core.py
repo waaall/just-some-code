@@ -480,7 +480,7 @@ class DataPlotter:
 # 测试代码
 if __name__ == '__main__':
     import os
-    from measure_data_parser import InputDataParser, OutputDataParser
+    from measure_data_parser import DataFormatParser
     from measure_data_alignment import DataAlignment
 
     print("=" * 60)
@@ -496,8 +496,8 @@ if __name__ == '__main__':
     else:
         # 解析数据
         print("\n1. 解析数据...")
-        input_data = InputDataParser.parse_csv(input_file)
-        output_data = OutputDataParser.parse_csv(output_file)
+        input_data = DataFormatParser.parse_csv(input_file, data_type='input')
+        output_data = DataFormatParser.parse_csv(output_file, data_type='output')
 
         # 对齐数据
         print("\n2. 对齐数据...")

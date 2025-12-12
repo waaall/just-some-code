@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from pathlib import Path
 
-from measure_data_parser import InputDataParser, OutputDataParser, MeasurementDataset
+from measure_data_parser import DataFormatParser, MeasurementDataset
 from measure_data_alignment import DataAlignment, AlignmentReport
 from measure_plotter_core import DataPlotter, PlotConfig
 
@@ -256,25 +256,27 @@ class DataPlotterApp:
         data_cfg = self.config.data_config
 
         print(f"  输入文件: {input_path}")
-        input_data = InputDataParser.parse_csv(
+        input_data = DataFormatParser.parse_csv(
             input_path,
             value_column_name=data_cfg['input_column'].get('name'),
             value_column_index=data_cfg['input_column'].get('index', 3),
             value_scale_factor=data_cfg['input_column'].get('scale_factor', 1.0),
             data_label=data_cfg.get('data_label', ''),
-            data_unit=data_cfg.get('data_unit', '')
+            data_unit=data_cfg.get('data_unit', ''),
+            data_type='input'
         )
         print(f"    - 数据点数: {len(input_data.data_points)}")
         print(f"    - 起始时间: {input_data.start_time_abs}")
 
         print(f"  输出文件: {output_path}")
-        output_data = OutputDataParser.parse_csv(
+        output_data = DataFormatParser.parse_csv(
             output_path,
             value_column_name=data_cfg['output_column'].get('name'),
             value_column_index=data_cfg['output_column'].get('index', 1),
             value_scale_factor=data_cfg['output_column'].get('scale_factor', 1.0),
             data_label=data_cfg.get('data_label', ''),
-            data_unit=data_cfg.get('data_unit', '')
+            data_unit=data_cfg.get('data_unit', ''),
+            data_type='output'
         )
         print(f"    - 数据点数: {len(output_data.data_points)}")
         print(f"    - 起始时间: {output_data.start_time_abs}")
