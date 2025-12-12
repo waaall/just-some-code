@@ -294,13 +294,19 @@ class DataPlotterApp:
             else:
                 print(f"  变化检测阈值: {threshold} {threshold_unit}")
 
+            aligned_csv_path = None
+            if aligned_output_raw:
+                aligned_csv_path = self._resolve_data_path(
+                    aligned_output_raw, from_cli=aligned_from_cli
+                )
+
             aligner = DataAlignment(threshold, threshold_unit=threshold_unit)
             aligned_input, aligned_output, report = aligner.align_datasets(
                 input_data, output_data, enable_align=True,
-                manual_time_offset_ms=manual_offset
+                manual_time_offset_ms=manual_offset,
+                aligned_csv_path=aligned_csv_path
             )
             self._print_alignment_report(report)
-            self._maybe_dump_aligned_output(aligned_output, aligned_output_raw, aligned_from_cli)
         else:
             print("  对齐功能已禁用")
             aligned_input = input_data
@@ -463,35 +469,6 @@ class DataPlotterApp:
             p = base_dir / p
         return str(p)
 
-    def _maybe_dump_aligned_output(
-        self,
-        dataset: MeasurementDataset,
-        path_raw: str,
-        from_cli: bool
-    ):
-        """
-        将对齐后的输出数据导出为CSV，便于对比
-
-        Args:
-            dataset: 对齐且裁剪后的输出数据
-            path_raw: 原始路径字符串
-            from_cli: 是否来自命令行
-        """
-        if not path_raw:
-            return
-
-        out_path = self._resolve_data_path(path_raw, from_cli=from_cli)
-        out_file = Path(out_path)
-        out_file.parent.mkdir(parents=True, exist_ok=True)
-
-        with out_file.open('w', encoding='utf-8', newline='') as f:
-            f.write("aligned_ms,value,raw_datetime\n")
-            for point in dataset.data_points:
-                f.write(f"{point.timestamp_ms},{point.value:.6f},"
-                        f"{point.raw_datetime}\n")
-
-        print(f"  已导出对齐输出: {out_file}")
-
 
 def main():
     """命令行入口"""
@@ -533,7 +510,7 @@ def main():
                         help='手动指定时间偏移量(ms)，跳过自动检测（正值表示output相对input延迟）')
     parser.add_argument('--no-show', action='store_true',
                         help='禁用交互式显示（仅保存图片）')
-    parser.add_argument('--aligned-output', help='输出对齐后CSV路径（保存裁剪对齐后的输出数据）')
+    parser.add_argument('--aligned-output', help='输出对齐后CSV路径（保存对齐后的输入/输出数据）')
 
     args = parser.parse_args()
 

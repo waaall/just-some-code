@@ -1,11 +1,11 @@
 {
-  "input_csv_path": "../../Tests/高精度三相动态测试/测试结果/251209test500ms.csv",
+  "input_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/test_49.9_50.1_1000ms-cal.csv",
   "output_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_freq.csv",
 
   "data_config": {
     "data_label": "Freq",
     "data_unit": "Hz",
-    "value_format": ".3f",
+    "value_format": ".4f",
     "input_column": {
       "name": null,
       "index": 3,
@@ -21,7 +21,7 @@
   "alignment_config": {
     "change_threshold": 0.002,
     "threshold_unit": "Hz",
-    "manual_time_offset_ms": 2600
+    "manual_time_offset_ms": 6000
   },
 
   "enable_alignment": true,
@@ -34,7 +34,7 @@
     "y_axis_label": "{data_label} ({data_unit})",
     "x_axis_label": "Time (s)",
     "output_filename_template": "{data_label}_comparison_result.png",
-    "value_format": ".3f",
+    "value_format": ".4f",
 
     "figsize": [20, 6],
     "data_min": null,

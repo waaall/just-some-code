@@ -46,7 +46,7 @@
 
   校准输出:
     --generate-cal      生成校准文件
-    --cal-error-ms      每步累计误差 (ms), 默认4.0; 指定此参数自动开启校准输出
+    --cal-error-ms      每步累计误差 (ms), 默认5.2; 指定此参数自动开启校准输出
 """
 
 import argparse
@@ -323,8 +323,8 @@ def parse_args() -> SweepConfig:
     parser.add_argument(
         "--cal-error-ms",
         type=float,
-        default=None,
-        help="每次频率修改的累计误差 (ms), 默认 4.0; 传入该参数将自动开启校准输出",
+        default=5.2,
+        help="每次频率修改的累计误差 (ms), 默认 5.2; 传入该参数将自动开启校准输出",
     )
 
     args = parser.parse_args()
@@ -339,7 +339,7 @@ def parse_args() -> SweepConfig:
             parser.error("--num-periods 必须大于 0")
 
     start_dt = datetime.combine(args.start_date or date.today(), args.start_time)
-    cal_error_ms = args.cal_error_ms if args.cal_error_ms is not None else 4.0
+    cal_error_ms = args.cal_error_ms if args.cal_error_ms is not None else 5.2
     generate_cal = args.generate_cal or args.cal_error_ms is not None
     output_path = Path(args.output) if args.output else None
 

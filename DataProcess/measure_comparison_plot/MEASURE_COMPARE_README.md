@@ -1,16 +1,24 @@
-# 频率对比绘图工具
+# 输入输出时序信号数据对比绘图工具
 
-一个模块化的Python工具，用于绘制PMU频率测试的输入输出对比图。
+一个模块化的Python工具集，用于PMU频率测试数据的可视化分析与精度评估。
 
 ## 功能特性
 
-- ✅ 支持两种CSV格式的自动解析
-- ✅ 自动检测变化点并对齐时间轴
-- ✅ 阶梯图（输入）+ 点线图（输出）双图对比
-- ✅ 鼠标交互显示双y值
-- ✅ 时间轴精确到100ms可分辨
-- ✅ 配置文件 + 命令行参数灵活配置
-- ✅ 静态图保存（高清PNG）+ 动态交互显示
+### 主程序功能
+
+- 支持两种CSV格式的自动解析
+- 自动检测变化点并对齐时间轴
+- 阶梯图（输入）+ 点线图（输出）双图对比
+- 鼠标交互显示双y值
+- 时间轴精确到100ms可分辨
+- 配置文件 + 命令行参数灵活配置
+- 静态图保存（高清PNG）+ 动态交互显示
+
+### 辅助工具（tools/）
+
+- **精度分析**：对齐数据的误差统计（全采样/稳态）
+- **数据转换**：4-20mA 与频率线性映射转换
+- **测试数据生成**：多种波形的频率测试数据生成
 
 ## 安装依赖
 
@@ -18,184 +26,33 @@
 pip install numpy matplotlib
 ```
 
-或者使用requirements.txt（如果提供）：
+## 目录结构
 
-```bash
-pip install -r requirements.txt
 ```
-
-## 快速开始
-
-### 方式1：使用配置文件（推荐）
-
-1. 编辑配置文件 `measure_compare_plot.json`（与脚本同目录），设置输入输出文件路径：
-
-```json
-{
-  "input_csv_path": "251209test200ms.csv",
-  "output_csv_path": "251209test200ms-result.csv"
-}
-```
-
-2. 运行程序：
-
-```bash
-cd measure_comparison_plot
-python measure_plotter.py
-```
-
-### 方式2：命令行指定文件
-
-```bash
-python measure_plotter.py -i ../251209test200ms.csv -o ../251209test200ms-result.csv
-```
-
-## 4-20mA 数据处理功能
-
-除频率数据对比外，工具还支持 4-20mA 数据的转换与绘图。
-
-### 功能特性
-
-- **线性映射**：4-20mA ↔ 频率（可配置，默认 4-20mA 对应 49.8-50.2Hz）
-- **精度可调**：mA/频率输出四舍五入步进可设置（如 0.001mA、0.001Hz）
-- **输入转换**：频率输入 CSV → mA 输入 CSV
-- **输出转换**：mA 输出 CSV（0.1ms采样）→ 标准格式（可配置聚合时间精度）
-- **输出频率转换**：标准 mA 输出 CSV → 频率 CSV（默认 0.001Hz）
-- **完全兼容**：转换后的文件可直接用于绘图和对齐
-
-### 快速使用
-
-#### 1. 转换频率输入为 mA 输入
-
-```bash
-# 使用默认映射（4-20mA ↔ 49.8-50.2Hz）
-python liner_converter.py convert-input \
-  -i input_freq.csv \
-  -o input_ma.csv
-
-# 自定义映射范围
-python liner_converter.py convert-input \
-  -i input_freq.csv -o input_ma.csv \
-  --ma-min 4 --ma-max 20 --freq-min 49.5 --freq-max 50.5
-
-# 指定 mA 输出精度（步进）
-python liner_converter.py convert-input \
-  -i input_freq.csv -o input_ma.csv \
-  --ma-precision 0.001
-```
-
-#### 2. 转换 mA 输出为标准格式
-
-```bash
-# 将 0.1ms 采样数据聚合为每毫秒一个值（默认 1ms）
-python liner_converter.py aggregate-output \
-  -i ma_output_raw.csv \
-  -o output_ma_standard.csv
-
-# 指定聚合后的时间精度（如 100ms）
-python liner_converter.py aggregate-output \
-  -i ma_output_raw.csv \
-  -o output_ma_standard_100ms.csv \
-  --aggregate-ms 100
-
-# 指定聚合后 mA 精度（如 0.001mA）
-python liner_converter.py aggregate-output \
-  -i ma_output_raw.csv \
-  -o output_ma_standard.csv \
-  --ma-precision 0.001
-```
-
-#### 2.1 转换标准 mA 输出为频率 CSV
-
-```bash
-python liner_converter.py aggregate-output-freq \
-  -i output_ma_standard.csv \
-  -o output_freq_standard.csv
-```
-
-#### 3. 绘制 mA 数据对比图
-
-```bash
-# 使用转换后的文件绘图（Y轴显示mA值）
-python measure_plotter.py \
-  -i input_ma.csv \
-  -o output_ma_standard.csv \
-  --ymin 4 --ymax 20
-```
-
-### 数据格式说明
-
-**输入格式（频率）**：`日期,时间,毫秒,频率`
-```csv
-2025-12-9,16:00:05,000,49.916
-2025-12-9,16:00:05,500,49.920
-```
-
-**输出格式（mA原始）**：`YYYY-MM-DD HH:MM:SS.微秒,mA值`（0.1ms采样）
-```csv
-2025-12-11 10:22:26.419200,19.99777
-2025-12-11 10:22:26.419300,19.99777
-```
-
-**输出格式（标准化）**：`YYYY/MM/DD HH:MM:SS::毫秒,mA值`（每毫秒聚合）
-```csv
-2025/12/09 10:05:28::805,18.90
-2025/12/09 10:05:28::806,18.90
-```
-
-### 配置文件支持
-
-在 `measure_compare_plot.json` 中添加映射配置：
-
-```json
-{
-  "ma_freq_mapping": {
-    "ma_min": 4.0,
-    "ma_max": 20.0,
-    "freq_min": 49.8,
-    "freq_max": 50.2,
-    "ma_precision": 0.01,
-    "freq_precision": 0.001
-  },
-  "plot_config": {
-    "data_min": 4.0,
-    "data_max": 20.0
-  }
-}
-```
-
-### 相关文件
-
-- `liner_converter.py` - 核心转换模块与 CLI（含线性映射、格式转换、毫秒聚合）
-
-### 线性映射公式
-
-**频率 → mA**：`mA = ma_min + (freq - freq_min) / (freq_max - freq_min) × (ma_max - ma_min)`
-
-**示例**（默认 4-20mA ↔ 49.8-50.2Hz）：
-- 49.8Hz → 4.00mA
-- 50.0Hz → 12.00mA
-- 50.2Hz → 20.00mA
-
-## 命令行参数
-
-```bash
-python measure_plotter.py [选项]
-
-选项:
-  -c, --config CONFIG    配置文件路径（默认: 脚本同目录的 measure_compare_plot.json）
-  -i, --input INPUT      输入CSV文件路径
-  -o, --output OUTPUT    输出CSV文件路径
-  --aligned-output PATH  对齐且裁剪后的输出数据保存路径
-  --ymin YMIN            频率轴最小值 (Hz)
-  --ymax YMAX            频率轴最大值 (Hz)
-  --no-align             禁用时间对齐
-  --threshold THRESHOLD  变化检测阈值（单位与配置中的 threshold_unit 一致）
-  --no-show              禁用交互式显示（仅保存图片）
-  -h, --help             显示帮助信息
+measure_comparison_plot/
+├── measure_plotter.py              # 主程序入口
+├── measure_data_parser.py          # CSV数据解析模块
+├── measure_data_alignment.py       # 时间对齐模块
+├── measure_plotter_core.py         # 绘图核心模块
+├── measure_compare_plot.json       # 主程序配置文件
+└── tools/                          # 辅助工具目录
+    ├── measure_accuracy.py         # 精度分析工具
+    ├── measure_accuracy_config.json
+    ├── liner_converter.py          # 数据转换工具
+    ├── ma_converter_config.json
+    └── generate_freq_test_data.py  # 测试数据生成工具
 ```
 
 ## 使用示例
+
+整体的开发流程是:
+
+1. generate_freq_test_data.py 生成测试输入数据，如果测试输入设备也存在信号变化的延迟问题，可同步生成该延迟的校准信号对比使用。
+2. 进行测试，采集被测设备输出的数据。
+3. 如果输出数据和输入数据不是一个单位或有线性映射关系,比如频率映射为4-20mA信号, 则使用tools/liner_converter.py 将输入或者输出的数据映射为一个单位/量级可以同步对比。注意时间戳的格式可能有所不同需要修改代码；如果没有映射关系跳过这一步。
+4. 如果输入数据和输出数据时间戳不一致，则使用 measure_data_alignment.py 来对齐，不过这一步已经集成到了最终步。
+5. 画图参数配置: measure_compare_plot.json 是配置文件，其调用到多个模块，例如上述的时间对齐模块还有CSV数据解析模块，配置参数都集成在了这个配置文件中，参数含义若不明白见相关代码文件。
+6. 精度计算: 经过上述数据对齐后会默认保存input和output数据对齐后的csv文件, 可以通过 tools/measure_accuracy.py 根据该对齐文件计算稳态与整体误差，具体流程见下或者见代码。
 
 ### 示例1：基本用法（使用配置文件）
 
@@ -242,7 +99,7 @@ python measure_plotter.py -i input.csv -o output.csv --threshold 0.005
 
 配置文件 `measure_compare_plot.json` 包含所有可调参数：
 
-### 路径解析规则（重要）
+### 路径解析规则
 
 **配置文件中的相对路径**：相对于配置文件所在目录（即代码所在目录）
 **命令行指定的相对路径**：相对于当前工作目录（执行命令的目录）
@@ -253,42 +110,6 @@ python measure_plotter.py -i input.csv -o output.csv --threshold 0.005
 - 配置中 `"input_csv_path": "../data/test.csv"` → 解析为 `/path/to/data/test.csv`
 - 命令行 `python measure_plotter.py -i ../data/test.csv`（在 `/tmp` 执行） → 解析为 `/data/test.csv`
 
-### 配置参数详解
-
-```json
-{
-  // 文件路径（配置文件中的相对路径相对于配置文件所在目录）
-  "input_csv_path": "251209test200ms.csv",
-  "output_csv_path": "251209test200ms-result.csv",
-  "aligned_output_csv_path": "out_aligned.csv",
-
-  // 对齐参数
-  "enable_alignment": true,           // 是否启用时间对齐
-  "alignment_config": {
-    "change_threshold": 0.002,        // 变化检测阈值
-    "threshold_unit": "Hz"            // 阈值单位（与数据单位一致）
-  },
-
-  // 绘图参数
-  "plot_config": {
-    "figsize": [14, 6],               // 图表尺寸（英寸）
-    "data_min": null,                 // y轴最小值（null=自动）
-    "data_max": null,                 // y轴最大值（null=自动）
-    "time_min": 0.0,                  // x轴起始时间（秒）
-    "time_max": null,                 // x轴结束时间（null=自动）
-    "output_style": "both",           // 输出样式：scatter/line/both
-    "input_color": "#1f77b4",         // 输入数据颜色（蓝色）
-    "output_color": "#ff7f0e",        // 输出数据颜色（橙色）
-    "enable_cursor": true,            // 启用鼠标交互
-    "dpi": 300,                       // 图片分辨率
-    "output_filename": "freq_comparison_result.png"  // 输出图片文件名（相对路径相对于配置文件所在目录）
-  },
-
-  // 输出选项
-  "save_static": true,                // 保存静态图片
-  "show_interactive": true            // 显示交互式窗口
-}
-```
 
 ## CSV格式要求
 
@@ -321,9 +142,36 @@ RX Date/Time,组/A_Freq
 - 时间格式为 `YYYY/MM/DD HH:MM:SS::mmm`
 - 绘制为点图或折线图
 
-## 时间对齐算法
 
-工具会自动对齐输入输出数据的时间轴：
+## 模块详细说明
+
+### 主程序模块
+
+#### measure_plotter.py
+
+主程序入口，负责协调整个绘图流程：
+- 加载和解析配置文件
+- 协调数据解析、对齐、绘图模块
+- 提供命令行接口
+- 日志输出
+
+#### measure_data_parser.py
+
+数据解析模块：
+- 解析两种CSV格式（输入/输出）
+- 统一时间戳为相对毫秒数
+- 处理BOM字符、不同日期格式
+
+#### measure_data_alignment.py
+
+时间对齐模块：
+- 检测首个显著变化点
+- 计算时间偏移量
+- 平移输出数据时间轴
+
+### 时间对齐算法
+
+可以手动指定对齐时间，也可以会自动对齐输入输出数据的时间轴：
 
 1. **输入起点**：第一个数据点（通常是稳定值）
 2. **输出起点**：首个频率变化 >= 阈值（默认0.002Hz）的点
@@ -343,69 +191,117 @@ RX Date/Time,组/A_Freq
     - 原始时间: 3300ms (3.300s)
   时间偏移: 3100ms (3.100s)
 ```
+#### measure_plotter_core.py
 
-## 交互功能
-
-打开交互式窗口后，鼠标移动时会显示：
-- 当前时间（秒，精确到3位小数）
-- 输入频率值（如果鼠标靠近输入线）
-- 输出频率值（如果鼠标靠近输出点）
-
-示例：
-
-```
-Time: 2.456s
-Input: 49.920 Hz
-Output: 49.918 Hz
-```
-
-## 模块说明
-
-### measure_data_parser.py
-
-数据解析模块，负责：
-- 解析两种CSV格式
-- 统一时间戳为相对毫秒数
-- 处理BOM字符、不同日期格式
-
-### measure_data_alignment.py
-
-时间对齐模块，负责：
-- 检测首个显著变化点
-- 计算时间偏移
-- 平移输出数据时间轴
-
-### measure_plotter_core.py
-
-绘图核心模块，负责：
+绘图核心模块：
 - 阶梯图绘制（输入数据）
 - 点图/折线图绘制（输出数据）
 - 鼠标交互实现
 - 时间轴精确配置（100ms可分辨）
 
-### measure_plotter.py
+### 辅助工具模块（tools/）
 
-主程序入口，负责：
-- 加载配置文件
-- 协调各模块工作流
-- 命令行接口
-- 日志输出
+#### liner_converter.py
 
-## 测试各模块
+4-20mA 与频率数据转换工具。
 
-每个模块都包含测试代码，可单独运行：
+**功能**：
+- 频率输入 CSV → mA 输入 CSV（线性映射）
+- mA 原始输出 CSV（0.1ms采样）→ 标准格式 CSV（时间聚合）
+- 标准 mA 输出 CSV → 频率 CSV
+
+**子命令**：
+- `convert-input`: 转换频率输入为 mA 输入
+- `aggregate-output`: 聚合 mA 原始输出为标准格式
+- `aggregate-output-freq`: 将标准 mA 输出转换为频率
+
+详细用法参见前文"4-20mA 数据处理功能"章节。
+
+#### generate_freq_test_data.py
+
+频率测试数据生成工具。
+
+**功能**：生成标准格式的频率动态测试数据，支持三种波形：
+
+- **linear**：线性扫频（阶梯变化）
+- **triangle**：三角波（周期性上升下降）
+- **sine**：正弦波（平滑周期变化）
+
+**典型用法**：
 
 ```bash
-# 测试数据解析模块
-cd measure_comparison_plot
-python measure_data_parser.py
+# 线性扫频（默认模式）
+python generate_freq_test_data.py --start-freq 49.9 --end-freq 50.1 \
+  --freq-step 0.01 --interval-ms 200
 
-# 测试时间对齐模块
-python measure_data_alignment.py
+# 正弦波模式
+python generate_freq_test_data.py --waveform-type sine \
+  --start-freq 49.9 --end-freq 50.1 \
+  --waveform-period-s 10.0 --num-periods 1 --interval-ms 100
 
-# 测试绘图核心模块
-python measure_plotter_core.py
+# 生成带时间累计误差的校准文件
+python generate_freq_test_data.py --waveform-type sine \
+  --start-freq 49.9 --end-freq 50.1 \
+  --waveform-period-s 5.0 --num-periods 1 \
+  --interval-ms 200 --cal-error-ms 4.5
 ```
+
+**输出格式**：与输入 CSV 格式一致（日期,时间,毫秒,频率），可直接用于绘图测试。
+
+#### measure_accuracy.py
+
+精度分析工具，用于评估对齐后数据的测量误差。
+
+**功能概述**：
+
+从对齐后的 CSV 文件（aligned_ms, input_value, output_value）计算误差统计指标：
+- **全采样误差**：对所有数据点计算误差统计
+- **稳态误差**：按输入值平台分段，排除各平台的起始过渡期后统计误差，可选欠采样窗口过滤
+
+**使用方法**：
+
+```bash
+# 通过配置文件运行
+python measure_accuracy.py -c measure_accuracy_config.json
+```
+
+**配置参数**：
+
+```json
+{
+  "aligned_csv_path": "out_aligned.csv",     // 对齐后的CSV文件路径
+  "time_col": "aligned_ms",                  // 时间列名（毫秒）
+  "input_col": "input_value",                // 输入参考值列名
+  "output_col": "output_value",              // 输出测量值列名
+
+  "input_deadband": 1e-6,                    // 输入平台切换阈值
+  "steady_exclude_ms": 250,                  // 各平台起始排除时长（ms）
+  "steady_min_duration_ms": 500,             // 稳态最小持续时长（ms）
+
+  "undersample_window_ms": null,             // 欠采样窗口 [start, end]（ms）
+  "per_level": false,                        // 是否输出各平台详细统计
+  "json_out": null,                          // JSON输出路径（可选）
+  "log_file": null,                          // 日志文件输出（可选）
+  "steady_points_csv": null,                 // 稳态点明细CSV（可选）
+  "steady_summary_csv": null                 // 稳态段汇总CSV（可选）
+}
+```
+
+**主要参数说明**：
+- `input_deadband`：检测输入值变化的死区，应大于输入噪声幅度
+- `steady_exclude_ms`：排除各平台起始的过渡期，建议设置为算法窗口长度
+- `steady_min_duration_ms`：稳态区最小时长，过短的平台将被忽略
+- `undersample_window_ms`：可选欠采样窗口，如 `[250, 750]` 表示每秒只取 250-750ms 相位的点
+
+**输出指标**：
+- 误差统计：count（样本数）、bias_mean（平均误差）、abs_mean（平均绝对误差）、rmse（均方根误差）、abs_max（最大绝对误差）、abs_p95/p99（95%/99%分位数）
+- 时间质量：总点数、非单调时间戳计数、时间步长统计
+- 可选文件输出：稳态点明细 CSV、稳态段汇总 CSV、结果 JSON、日志文件
+
+**注意事项**：
+- 本工具仅评估数值偏差，不评估动态响应或延迟
+- 输入值噪声过大会导致平台过度分段，建议确保输入死区合理
+- 稳态区仅排除平台起始的过渡期，不排除结束时的过渡
 
 ## 常见问题
 
@@ -446,19 +342,3 @@ for input_file in *.csv; do
   fi
 done
 ```
-
-## 许可证
-
-本工具为PMU测试项目内部使用工具。
-
-## 版本历史
-
-- **v1.0** (2025-12-09): 初始版本
-  - 支持两种CSV格式解析
-  - 自动时间对齐
-  - 阶梯图 + 点线图对比
-  - 鼠标交互功能
-
-## 联系方式
-
-如有问题或建议，请联系项目维护者。
