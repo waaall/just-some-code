@@ -438,37 +438,34 @@ def convert_input_command(config: dict):
     })
 
 
-def convert_output_command(config: dict):
-    """处理 convert-output 命令"""
+def aggregate_output_command(config: dict):
+    """处理 aggregate-output 命令"""
     mapping = _load_mapping_from_config(config)
-    cmd_cfg = config.get('convert_output', {})
+    cmd_cfg = config.get('aggregate_output', {})
 
     input_file = cmd_cfg.get('input', 'input_ma_output.csv')
     output_file = cmd_cfg.get('output', 'output_standard_ma.csv')
     aggregate_ms = cmd_cfg.get('aggregate_ms', 1)
 
-    converter = LinearConvertAggregator(mapping)
-    count = converter.aggregate_raw_csv(
-        input_file,
-        output_file,
-        aggregate_ms=aggregate_ms
-    )
+    converter = TimeSeriesAggregator(mapping)
+    count = converter.csv_to_aggregated_csv(input_file, output_file, aggregate_ms=aggregate_ms)
 
     _print_conversion_result(count, input_file, output_file, {
         '格式': f"YYYY-MM-DD HH:MM:SS.微秒 → YYYY/MM/DD HH:MM:SS::毫秒 (每 {aggregate_ms}ms 均值)"
     })
 
 
-def convert_output_freq_command(config: dict):
-    """处理 convert-output-freq 命令"""
+def aggregate_output_freq_command(config: dict):
+    """处理 aggregate-output-freq 命令"""
     mapping = _load_mapping_from_config(config)
-    cmd_cfg = config.get('convert_output_freq', {})
+    cmd_cfg = config.get('aggregate_output_freq', {})
 
     input_file = cmd_cfg.get('input', 'input_standard_ma.csv')
     output_file = cmd_cfg.get('output', 'output_freq.csv')
+    aggregate_ms = cmd_cfg.get('aggregate_ms', 1)
 
     converter = LinearConvertAggregator(mapping)
-    count = converter.aggregate_and_map_csv(input_file, output_file)
+    count = converter.aggregate_and_map_csv(input_file, output_file, aggregate_ms)
     _print_conversion_result(count, input_file, output_file, {
         '映射': f"{mapping.in_min}-{mapping.in_max} mA → {mapping.out_min}-{mapping.out_max} Hz",
         '频率精度': f"{mapping.out_precision} Hz"
@@ -484,8 +481,8 @@ def main():
   # 使用默认配置文件 (ma_converter_config.json)
   python liner_converter.py convert-input
 
-  python liner_converter.py -c config.json convert-output
-  python liner_converter.py -c config.json convert-output-freq
+  python liner_converter.py -c config.json aggregate-output
+  python liner_converter.py -c config.json aggregate-output-freq
 
 配置文件格式参考: ma_converter_config.json
         """
@@ -502,11 +499,11 @@ def main():
         help='将频率输入 CSV 转换为 mA 输入 CSV'
     )
     subparsers.add_parser(
-        'convert-output',
+        'aggregate-output',
         help='将 mA 输出 CSV 转换为标准格式(按毫秒求均值)'
     )
     subparsers.add_parser(
-        'convert-output-freq',
+        'aggregate-output-freq',
         help='将标准格式 mA 输出 CSV 转换为频率 CSV'
     )
     args = parser.parse_args()
@@ -515,10 +512,10 @@ def main():
 
     if args.command == 'convert-input':
         convert_input_command(config)
-    elif args.command == 'convert-output':
-        convert_output_command(config)
-    elif args.command == 'convert-output-freq':
-        convert_output_freq_command(config)
+    elif args.command == 'aggregate-output':
+        aggregate_output_command(config)
+    elif args.command == 'aggregate-output-freq':
+        aggregate_output_freq_command(config)
 
 
 if __name__ == '__main__':

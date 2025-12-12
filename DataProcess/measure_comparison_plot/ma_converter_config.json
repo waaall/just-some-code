@@ -16,16 +16,17 @@
     "output": "Tests/4-20mA测试/DEWE高精度测试/251209test_dynamic-ma.csv"
   },
 
-  "convert_output": {
+  "aggregate_output": {
     "comment": "mA 输出原始数据 → 标准格式（时间聚合）",
     "input": "Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_20251211_1113.csv",
     "output": "Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_aggregated.csv",
-    "aggregate_ms": 1
+    "aggregate_ms": 100
   },
 
-  "convert_output_freq": {
+  "aggregate_output_freq": {
     "comment": "标准格式 mA → 频率输出 CSV",
     "input": "Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_20251211_1113.csv",
-    "output": "Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_freq.csv"
+    "output": "Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_freq.csv",
+    "aggregate_ms": 100
   }
 }

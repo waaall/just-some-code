@@ -88,18 +88,18 @@ python liner_converter.py convert-input \
 
 ```bash
 # 将 0.1ms 采样数据聚合为每毫秒一个值（默认 1ms）
-python liner_converter.py convert-output \
+python liner_converter.py aggregate-output \
   -i ma_output_raw.csv \
   -o output_ma_standard.csv
 
 # 指定聚合后的时间精度（如 100ms）
-python liner_converter.py convert-output \
+python liner_converter.py aggregate-output \
   -i ma_output_raw.csv \
   -o output_ma_standard_100ms.csv \
   --aggregate-ms 100
 
 # 指定聚合后 mA 精度（如 0.001mA）
-python liner_converter.py convert-output \
+python liner_converter.py aggregate-output \
   -i ma_output_raw.csv \
   -o output_ma_standard.csv \
   --ma-precision 0.001
@@ -108,7 +108,7 @@ python liner_converter.py convert-output \
 #### 2.1 转换标准 mA 输出为频率 CSV
 
 ```bash
-python liner_converter.py convert-output-freq \
+python liner_converter.py aggregate-output-freq \
   -i output_ma_standard.csv \
   -o output_freq_standard.csv
 ```

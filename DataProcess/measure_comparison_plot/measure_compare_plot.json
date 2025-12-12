@@ -1,5 +1,5 @@
 {
-  "input_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/251209test_dynamic.csv",
+  "input_csv_path": "../../Tests/高精度三相动态测试/测试结果/251209test500ms.csv",
   "output_csv_path": "../../Tests/4-20mA测试/DEWE高精度测试/dynamic_4-20ma_freq.csv",
 
   "data_config": {
@@ -21,7 +21,7 @@
   "alignment_config": {
     "change_threshold": 0.002,
     "threshold_unit": "Hz",
-    "manual_time_offset_ms": 6300
+    "manual_time_offset_ms": 2600
   },
 
   "enable_alignment": true,
