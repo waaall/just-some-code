@@ -2,8 +2,11 @@
     update: 20240909
 """
 import argparse
+import pathlib
+import site
 import subprocess
 import sys
+import time
 
 class zxPackageManager:
     def __init__(self):
@@ -70,11 +73,35 @@ class zxPackageManager:
             except subprocess.CalledProcessError:
                 print(f"更新 {package} 失败，请检查错误信息。")
 
+    def list_recent_dist_infos(self, limit=30):
+        """列出最近更新的 dist-info 包"""
+        paths = [p for p in site.getsitepackages() + [site.getusersitepackages()] if p]
+        dist_infos = []
+        for base in paths:
+            p = pathlib.Path(base)
+            if not p.exists():
+                continue
+            for info in p.glob('*.dist-info'):
+                mtime = info.stat().st_mtime
+                name_ver = info.name.replace('.dist-info', '')
+                dist_infos.append((mtime, name_ver))
+
+        for mtime, name_ver in sorted(dist_infos, reverse=True)[:limit]:
+            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime)), name_ver)
+
 def main():
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(description="Install or update required Python packages.")
     parser.add_argument('-install', '--install', action='store_true', help="Install the required packages.")
     parser.add_argument('-update', '--update', action='store_true', help="Update the required packages.")
+    parser.add_argument(
+        '-recent',
+        '--recent',
+        nargs='?',
+        const=30,
+        type=int,
+        help="List recently updated dist-info packages (default 30).",
+    )
 
     # 解析命令行参数
     args = parser.parse_args()
@@ -89,8 +116,10 @@ def main():
     elif args.update:
         manager.update_packages()
         print("所有库已更新完成。")
+    elif args.recent is not None:
+        manager.list_recent_dist_infos(limit=args.recent)
     else:
-        print("请指定一个操作：-install/--install 或 -update/--update")
+        print("请指定一个操作：-install/--install 或 -update/--update 或 -recent/--recent [数量]")
 
 if __name__ == "__main__":
     main()
