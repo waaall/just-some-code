@@ -3,11 +3,14 @@
 #    python batch_file_renamer.py --dir "D:\demo" --pattern "-" --mode prefix
 # 2. 将文件名主体中的所有空格替换为下划线：
 #    python batch_file_renamer.py --dir "D:\demo" --pattern " " --mode all --replace-with "_"
-# 3. 递归处理并把后缀也纳入匹配范围：
+# 3. 删除两个边界字符串之间的内容，并保留边界本身：
+#    python batch_file_renamer.py --dir "D:\demo" --mode between --start-pattern "应用数学二" --end-pattern "第"
+# 4. 递归处理并把后缀也纳入匹配范围：
 #    python batch_file_renamer.py --dir "D:\demo" --pattern "tmp" --mode body --include-extension --recursive
 # 规则说明：
 # - 默认只处理文件名主体，不处理后缀；后缀按文件名最后一个 "." 划分。
 # - prefix 只处理开头一次；all 处理所有匹配；body 只处理非开头位置的匹配。
+# - between 按 start + replace_with + end 的形式替换；如果开始或结束边界出现多次，则跳过并记为 skipped_multi_match。
 # - 默认不区分大小写，可通过 --case-sensitive 改为区分大小写。
 # - 默认不递归子目录，可通过 --recursive 开启递归处理。
 
@@ -26,11 +29,14 @@ class MatchMode(str, Enum):
     PREFIX = "prefix"
     ALL = "all"
     BODY = "body"
+    BETWEEN = "between"
 
 
 class Config:
     DEFAULT_TARGET_DIRECTORY = "."
     DEFAULT_PATTERN = "-"
+    DEFAULT_START_PATTERN = ""
+    DEFAULT_END_PATTERN = ""
     DEFAULT_MODE = MatchMode.PREFIX.value
     DEFAULT_REPLACE_WITH = ""
     DEFAULT_INCLUDE_EXTENSION = False
@@ -42,6 +48,7 @@ class Config:
 class RenameStatus:
     SUCCESS = "success"
     SKIPPED_NO_MATCH = "skipped_no_match"
+    SKIPPED_MULTI_MATCH = "skipped_multi_match"
     SKIPPED_CONFLICT = "skipped_conflict"
     SKIPPED_EMPTY_NAME = "skipped_empty_name"
     SKIPPED_NO_CHANGE = "skipped_no_change"
@@ -72,19 +79,21 @@ class FileNameParser:
 
 @dataclass(frozen=True)
 class RenameRule:
-    pattern: str
     mode: MatchMode
     replace_with: str
     include_extension: bool
     case_sensitive: bool
+    pattern: str = ""
+    start_pattern: str = ""
+    end_pattern: str = ""
 
     def build_new_name(self, old_file_name: str) -> tuple[str | None, str]:
         parts = FileNameParser.split(old_file_name)
         source_text = old_file_name if self.include_extension else parts.name_without_extension
-        transformed_text, replacement_count = self._transform_text(source_text)
+        transformed_text, status = self._transform_text(source_text)
 
-        if replacement_count == 0:
-            return None, RenameStatus.SKIPPED_NO_MATCH
+        if status != "ready":
+            return None, status
 
         new_file_name = (
             transformed_text
@@ -100,33 +109,63 @@ class RenameRule:
 
         return new_file_name, "ready"
 
-    def _transform_text(self, text: str) -> tuple[str, int]:
+    def _transform_text(self, text: str) -> tuple[str, str]:
         if self.mode == MatchMode.PREFIX:
             return self._replace_prefix(text)
         if self.mode == MatchMode.ALL:
             return self._replace_all(text)
         if self.mode == MatchMode.BODY:
             return self._replace_body(text)
+        if self.mode == MatchMode.BETWEEN:
+            return self._replace_between(text)
         raise ValueError(f"不支持的匹配模式: {self.mode}")
 
-    def _replace_prefix(self, text: str) -> tuple[str, int]:
+    def _replace_prefix(self, text: str) -> tuple[str, str]:
         if not self._starts_with(text, self.pattern):
-            return text, 0
-        return f"{self.replace_with}{text[len(self.pattern):]}", 1
+            return text, RenameStatus.SKIPPED_NO_MATCH
+        return f"{self.replace_with}{text[len(self.pattern):]}", "ready"
 
-    def _replace_all(self, text: str) -> tuple[str, int]:
+    def _replace_all(self, text: str) -> tuple[str, str]:
         return self._replace_all_occurrences(text)
 
-    def _replace_body(self, text: str) -> tuple[str, int]:
+    def _replace_body(self, text: str) -> tuple[str, str]:
         if self._starts_with(text, self.pattern):
-            preserved_prefix = text[:len(self.pattern)]
+            preserved_prefix = text[: len(self.pattern)]
             transformed_suffix, replacement_count = self._replace_all_occurrences(
-                text[len(self.pattern):]
+                text[len(self.pattern) :]
             )
-            return f"{preserved_prefix}{transformed_suffix}", replacement_count
+            if replacement_count == 0:
+                return text, RenameStatus.SKIPPED_NO_MATCH
+            return f"{preserved_prefix}{transformed_suffix}", "ready"
         return self._replace_all_occurrences(text)
 
-    def _replace_all_occurrences(self, text: str) -> tuple[str, int]:
+    def _replace_between(self, text: str) -> tuple[str, str]:
+        start_positions = self._find_all_substring_positions(
+            text, self.start_pattern, allow_overlap=True
+        )
+        end_positions = self._find_all_substring_positions(
+            text, self.end_pattern, allow_overlap=True
+        )
+
+        if not start_positions or not end_positions:
+            return text, RenameStatus.SKIPPED_NO_MATCH
+
+        if len(start_positions) > 1 or len(end_positions) > 1:
+            return text, RenameStatus.SKIPPED_MULTI_MATCH
+
+        start_index = start_positions[0]
+        end_index = end_positions[0]
+        start_end_index = start_index + len(self.start_pattern)
+
+        if end_index < start_end_index:
+            return text, RenameStatus.SKIPPED_NO_MATCH
+
+        return (
+            f"{text[:start_end_index]}{self.replace_with}{text[end_index:]}",
+            "ready",
+        )
+
+    def _replace_all_occurrences(self, text: str) -> tuple[str, str]:
         start = 0
         pieces: list[str] = []
         replacement_count = 0
@@ -142,7 +181,10 @@ class RenameRule:
             start = match_index + len(self.pattern)
             replacement_count += 1
 
-        return "".join(pieces), replacement_count
+        if replacement_count == 0:
+            return text, RenameStatus.SKIPPED_NO_MATCH
+
+        return "".join(pieces), "ready"
 
     def _starts_with(self, text: str, pattern: str) -> bool:
         if self.case_sensitive:
@@ -153,6 +195,29 @@ class RenameRule:
         if self.case_sensitive:
             return text.find(pattern, start)
         return text.lower().find(pattern.lower(), start)
+
+    def _find_all_substring_positions(
+        self,
+        text: str,
+        pattern: str,
+        allow_overlap: bool = False,
+    ) -> list[int]:
+        if not pattern:
+            return []
+
+        search_text = text if self.case_sensitive else text.lower()
+        search_pattern = pattern if self.case_sensitive else pattern.lower()
+        positions: list[int] = []
+        search_start = 0
+        step = 1 if allow_overlap else len(pattern)
+
+        while True:
+            match_index = search_text.find(search_pattern, search_start)
+            if match_index == -1:
+                return positions
+
+            positions.append(match_index)
+            search_start = match_index + step
 
 
 @dataclass(frozen=True)
@@ -210,8 +275,7 @@ class BatchRenamer:
             self.logger.error(f"指定的文件夹不存在: {self.target_dir}")
             return
 
-        if not self.config.rule.pattern:
-            self.logger.error("匹配文本不能为空。")
+        if not self._validate_rule():
             return
 
         file_paths, ignored_dir_count = self._collect_file_paths()
@@ -219,9 +283,11 @@ class BatchRenamer:
 
         self.logger.info(f"开始处理目录: {self.target_dir}")
         self.logger.info(
-            "参数: pattern='%s' | mode=%s | replace_with='%s' | include_extension=%s | "
-            "case_sensitive=%s | recursive=%s | threads=%s",
+            "参数: pattern='%s' | start_pattern='%s' | end_pattern='%s' | mode=%s | "
+            "replace_with='%s' | include_extension=%s | case_sensitive=%s | recursive=%s | threads=%s",
             self.config.rule.pattern,
+            self.config.rule.start_pattern,
+            self.config.rule.end_pattern,
             self.config.rule.mode.value,
             self.config.rule.replace_with,
             self.config.rule.include_extension,
@@ -234,10 +300,26 @@ class BatchRenamer:
         self._execute_rename_tasks(rename_tasks, stats)
         self._print_summary(len(file_paths), stats)
 
+    def _validate_rule(self) -> bool:
+        if self.config.rule.mode == MatchMode.BETWEEN:
+            if not self.config.rule.start_pattern or not self.config.rule.end_pattern:
+                self.logger.error(
+                    "between 模式下必须同时提供 --start-pattern 和 --end-pattern。"
+                )
+                return False
+            return True
+
+        if not self.config.rule.pattern:
+            self.logger.error("prefix/all/body 模式下 --pattern 不能为空。")
+            return False
+
+        return True
+
     def _create_stats(self, ignored_dir_count: int) -> dict[str, int]:
         return {
             RenameStatus.SUCCESS: 0,
             RenameStatus.SKIPPED_NO_MATCH: 0,
+            RenameStatus.SKIPPED_MULTI_MATCH: 0,
             RenameStatus.SKIPPED_CONFLICT: 0,
             RenameStatus.SKIPPED_EMPTY_NAME: 0,
             RenameStatus.SKIPPED_NO_CHANGE: 0,
@@ -278,6 +360,7 @@ class BatchRenamer:
 
             if status != "ready":
                 stats[status] += 1
+                self._log_skip_status(file_path, status)
                 continue
 
             new_path = os.path.join(os.path.dirname(file_path), new_file_name)
@@ -316,6 +399,23 @@ class BatchRenamer:
 
         return approved_tasks
 
+    def _log_skip_status(self, file_path: str, status: str) -> None:
+        display_name = self._display_path(file_path)
+
+        if status == RenameStatus.SKIPPED_MULTI_MATCH:
+            self.logger.warning(
+                "跳过多重边界匹配: '%s' 中开始或结束边界出现多次。",
+                display_name,
+            )
+            return
+
+        if status == RenameStatus.SKIPPED_EMPTY_NAME:
+            self.logger.warning(
+                "跳过空文件名结果: '%s' 替换后文件名为空。",
+                display_name,
+            )
+            return
+
     def _execute_rename_tasks(
         self,
         rename_tasks: list[RenameTask],
@@ -353,6 +453,7 @@ class BatchRenamer:
         print(f"扫描到文件数       : {file_count}")
         print(f"成功重命名         : {stats[RenameStatus.SUCCESS]}")
         print(f"未匹配跳过         : {stats[RenameStatus.SKIPPED_NO_MATCH]}")
+        print(f"多重匹配跳过       : {stats[RenameStatus.SKIPPED_MULTI_MATCH]}")
         print(f"重名冲突跳过       : {stats[RenameStatus.SKIPPED_CONFLICT]}")
         print(f"结果为空跳过       : {stats[RenameStatus.SKIPPED_EMPTY_NAME]}")
         print(f"名称未变化跳过     : {stats[RenameStatus.SKIPPED_NO_CHANGE]}")
@@ -375,14 +476,26 @@ def parse_args() -> argparse.Namespace:
         "--pattern",
         type=str,
         default=Config.DEFAULT_PATTERN,
-        help="要匹配的普通字符串。",
+        help="prefix/all/body 模式下要匹配的普通字符串。",
+    )
+    parser.add_argument(
+        "--start-pattern",
+        type=str,
+        default=Config.DEFAULT_START_PATTERN,
+        help="between 模式下的开始边界字符串。",
+    )
+    parser.add_argument(
+        "--end-pattern",
+        type=str,
+        default=Config.DEFAULT_END_PATTERN,
+        help="between 模式下的结束边界字符串。",
     )
     parser.add_argument(
         "--mode",
         type=str,
         choices=[mode.value for mode in MatchMode],
         default=Config.DEFAULT_MODE,
-        help="匹配模式：prefix | all | body。",
+        help="匹配模式：prefix | all | body | between。",
     )
     parser.add_argument(
         "--replace-with",
@@ -422,11 +535,13 @@ def main() -> None:
     config = BatchRenameConfig(
         target_dir=args.target_dir,
         rule=RenameRule(
-            pattern=args.pattern,
             mode=MatchMode(args.mode),
             replace_with=args.replace_with,
             include_extension=args.include_extension,
             case_sensitive=args.case_sensitive,
+            pattern=args.pattern,
+            start_pattern=args.start_pattern,
+            end_pattern=args.end_pattern,
         ),
         recursive=args.recursive,
         max_workers=args.threads,
