@@ -231,3 +231,8 @@ $RECYCLE.BIN/
 # Project specific
 logs/
 backup/
+output/
+
+# Local application state and generated results
+apps/countdown_appraisal/resources/settings.json
+tools/data/calibration/calibration_result.*

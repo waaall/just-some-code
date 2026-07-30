@@ -1,0 +1,30 @@
+{
+  "aligned_csv_path": "../../../../Tests/4-20mA测试/DEWE高精度测试/out_aligned.csv",
+  "time_col": "aligned_ms",
+  "input_col": "input_value",
+  "output_col": "output_value",
+  "input_deadband": 0.002,
+  "steady_exclude_ms": 250,
+  "steady_min_duration_ms": 300,
+  "undersample_window_ms": null,
+  "per_level": false,
+  "json_out": null,
+  "log_file": "../../../Tests/4-20mA测试/DEWE高精度测试/measure_accuracy.log",
+  "steady_points_csv": "../../../../Tests/4-20mA测试/DEWE高精度测试/steady_points.csv",
+  "steady_summary_csv": "../../../../Tests/4-20mA测试/DEWE高精度测试/steady_summary.csv",
+  "_comments": {
+    "aligned_csv_path": "对齐后的CSV文件路径 (支持相对路径，相对于本配置文件)",
+    "time_col": "对齐时间列名",
+    "input_col": "输入值列名",
+    "output_col": "输出值列名",
+    "input_deadband": "输入平台变化检测的死区",
+    "steady_exclude_ms": "每次输入变化后排除的时间(ms)，用于稳态计算",
+    "steady_min_duration_ms": "接受一个段作为稳态的最小持续时间(ms)",
+    "undersample_window_ms": "欠采样窗口 [起始ms, 结束ms]，每秒内只保留此相位范围的点。例如 [250, 750] 表示只保留每秒中间500ms的点。设为 null 则不欠采样",
+    "per_level": "是否按输入平台level打印稳态指标",
+    "json_out": "保存结果JSON的路径，设为 null 则不保存",
+    "log_file": "保存运行日志到文件，设为 null 则不保存",
+    "steady_points_csv": "保存用于稳态统计的点明细CSV（含 aligned_ms/raw_datetime/input/output/error），设为 null 则不保存",
+    "steady_summary_csv": "保存稳态段汇总CSV（每个平台的稳态区间+统计指标），设为 null 则不保存"
+  }
+}
